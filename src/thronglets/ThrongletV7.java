@@ -91,41 +91,80 @@ public class ThrongletV7 {
         // ③ Innerer Monolog
         lastThought = brain.getLastThought();
 
-        // ④ Aktionen
-        // NEU: Speed via SimConfig
+        // ④ Priorisiertes Verhalten (Hunger > Kälte > Paarung > Erkunden)
         double speed  = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod;
-        boolean flee  = out[6] > gene.fearThreshold
-                && world.nearestDangerDist(x, y) < gene.sensorRange;
+        double energy = homeostasis.drives[DriveType.ENERGY.id];
+        double warmth = homeostasis.drives[DriveType.WARMTH.id];
+
+        boolean flee   = out[6] > gene.fearThreshold
+                      && world.nearestDangerDist(x, y) < gene.sensorRange;
+        boolean hungry = energy < 40;
+        boolean cold   = warmth < 30;
+        boolean mating = !hungry && !cold
+                      && stage.canReproduce()
+                      && memory.age >= (int) gene.reproductionAge
+                      && energy > 65 && homeostasis.valence > 0.1;
+
         double mx = 0, my = 0;
 
         if (flee) {
+            // Gefahr hat höchste Priorität
             double[] esc = escapeDir(world);
             mx = esc[0] * speed * 2.5;
             my = esc[1] * speed * 2.5;
+
+        } else if (hungry) {
+            // Direkt zur nächsten Nahrungsquelle navigieren
+            double[] fp = world.nearestFoodPos(x, y);
+            if (fp != null) {
+                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+                if (d > 0) { mx = dx/d * speed * 2.2; my = dy/d * speed * 2.2; }
+            } else {
+                // Kein Futter sichtbar → Pheromonspur folgen
+                double[] grad = world.niche.gradient(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
+                mx = grad[0] * speed * 1.5; my = grad[1] * speed * 1.5;
+            }
+
+        } else if (cold) {
+            // Direkt zum nächsten Lagerfeuer navigieren
+            double[] fp = world.nearestFirePos(x, y);
+            if (fp != null) {
+                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+                if (d > 0) { mx = dx/d * speed * 1.8; my = dy/d * speed * 1.8; }
+            }
+
+        } else if (mating && nearestMate != null) {
+            // Zum Partner navigieren
+            double dx = nearestMate.x - x, dy = nearestMate.y - y;
+            double d  = Math.sqrt(dx*dx + dy*dy);
+            if (d > 8 && d < gene.sensorRange * 2.5) {
+                mx = dx/d * speed * gene.reproductiveDrive * 1.5;
+                my = dy/d * speed * gene.reproductiveDrive * 1.5;
+            } else {
+                double snnMod = (out[0] - 0.5) * Math.PI;
+                double angle  = gene.epiBias * 2 * Math.PI + snnMod;
+                double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
+                        (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
+                mx = Math.cos(angle) * spd; my = Math.sin(angle) * spd;
+            }
+
         } else {
-            // Genetische Basisrichtung [0,2π] + SNN-Modulation ±90°
+            // Normales Erkunden: genetische Basisrichtung + SNN-Modulation ±90°
             double snnMod = (out[0] - 0.5) * Math.PI;
             double angle  = gene.epiBias * 2 * Math.PI + snnMod;
-            // NEU: Neugier via SimConfig
             double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
                     (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
             mx = Math.cos(angle) * spd;
             my = Math.sin(angle) * spd;
         }
 
-        // FEP-moduliert: gehe zur Nahrung wenn Energie-Belief niedrig
-        if (homeostasis.drives[DriveType.ENERGY.id] < 40) {
-            double[] grad = world.niche.gradient(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
-            mx += grad[0] * speed * 0.7;
-            my += grad[1] * speed * 0.7;
-        }
-
-        // Gruppen-Navigation
-        if (gfx >= 0 && out[8] > 0.5) {
+        // Gruppen-Navigation (immer außer beim Flüchten, aber schwächer im Notstand)
+        if (!flee && gfx >= 0 && out[8] > 0.5) {
             double dx = gfx - x, dy = gfy - y, d = Math.sqrt(dx*dx + dy*dy);
             if (d > 1) {
-                mx += dx/d * speed * gene.socialAffinity;
-                my += dy/d * speed * gene.socialAffinity;
+                double gForce = (hungry || cold) ? gene.socialAffinity * 0.3 : gene.socialAffinity;
+                mx += dx/d * speed * gForce;
+                my += dy/d * speed * gForce;
             }
         }
 
@@ -151,7 +190,6 @@ public class ThrongletV7 {
         if (stage.canMove()) {
             double nx = world.clampX(x + mx);
             double ny = world.clampY(y + my);
-            // Sicherheitsnetz: falls NaN/Infinity rein schleicht → reset in die Mitte
             if (Double.isNaN(nx) || Double.isInfinite(nx)
                     || Double.isNaN(ny) || Double.isInfinite(ny)) {
                 nx = world.clampX(world.width  * 0.1 + rng.nextDouble() * world.width  * 0.8);
@@ -166,11 +204,13 @@ public class ThrongletV7 {
             world.niche.deposit(x, y, PheromoneType.TRAIL, 0.025);
             if (homeostasis.drives[DriveType.SOCIAL.id] > 60)
                 world.niche.deposit(x, y, PheromoneType.SOCIAL, 0.04);
+            if (mating && nearestMate != null)
+                world.niche.deposit(x, y, PheromoneType.SOCIAL, 0.08); // Paarungslocksignal
         }
 
-        // ⑥ Nahrung
+        // ⑥ Nahrung – immer essen wenn nicht satt und Nahrung in Reichweite (kein SNN-Gate)
         boolean atFood = false;
-        if (out[2] > 0.45 && stage != LifeStage.EGG) {
+        if (stage != LifeStage.EGG && energy < 90) {
             double eaten = world.consumeFood(x, y, gene.sensorRange * 0.4);
             if (eaten > 0) {
                 homeostasis.drives[DriveType.ENERGY.id] =
@@ -178,7 +218,7 @@ public class ThrongletV7 {
                 fitness += eaten * 0.4;
                 memory.logFood(world.getTick());
                 world.niche.deposit(x, y, PheromoneType.FOOD_TRAIL, 0.15);
-                brain.reinforce(2, (float)(eaten / 10.0)); // SNN-Reinforcement: Essen belohnen
+                brain.reinforce(2, (float)(eaten / 10.0));
                 atFood = true;
             }
         }
@@ -198,6 +238,15 @@ public class ThrongletV7 {
 
         // ⑨ Homeostase
         homeostasis.tick(world.currentSeason, groupId >= 0, moved, atFood);
+
+        // Wärme von Lagerfeuern anwenden
+        double fireWarmth = world.warmthAt(x, y);
+        if (fireWarmth > 0) {
+            homeostasis.drives[DriveType.WARMTH.id] =
+                    Math.min(100, homeostasis.drives[DriveType.WARMTH.id] + fireWarmth);
+            brain.reinforce(5, (float)(fireWarmth * 0.5)); // Wärme positiv belohnen
+        }
+
         double dmg = world.dangerDamage(x, y);
         if (dmg > 0) {
             homeostasis.applyDanger(dmg * (groupId >= 0 ? 0.55 : 1.0));
@@ -207,7 +256,6 @@ public class ThrongletV7 {
 
         // ⑩ Fitness
         fitness += homeostasis.wellbeing() * 0.12 + 0.05;
-        // FEP-Bonus: niedriger Vorhersagefehler = Welt wird verstanden = Fitness-Bonus
         if (brain.getPredError() < 0.15) fitness += 0.03;
 
         memory.tick(new double[]{
@@ -219,16 +267,14 @@ public class ThrongletV7 {
         if (homeostasis.isDead()) { alive = false; return null; }
 
         // ⑪ Reproduktion
-        boolean canRepro = stage.canReproduce()
-                && memory.age >= (int) gene.reproductionAge
+        boolean canRepro = mating
                 && homeostasis.drives[DriveType.ENERGY.id] > 65
-                && homeostasis.valence > 0.1
                 && out[3] > (1.1 - gene.reproductiveDrive * 0.5);
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
             fitness += 12;
             memory.logMate(world.getTick());
-            brain.reinforce(3, 2.0f); // SNN: Reproduktion belohnen
+            brain.reinforce(3, 2.0f);
             ThrongletV7 child = new ThrongletV7(
                     x + rng.nextGaussian() * 8,
                     y + rng.nextGaussian() * 8,
@@ -262,7 +308,7 @@ public class ThrongletV7 {
         inp[12] = (float) Math.min(1, memory.age / 1500.0);
         inp[13] = safeFloat(brain.getLastFE());
         inp[14] = safeFloat(brain.getPredError());
-        inp[15] = safeFloat(brain.getUncertainty());
+        inp[15] = (float) Math.max(0, 1 - world.nearestFireDist(x, y) / (gene.sensorRange * 3));
         return inp;
     }
 

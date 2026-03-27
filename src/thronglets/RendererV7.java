@@ -11,6 +11,7 @@ public class RendererV7 extends JPanel {
     private volatile List<AgentSnap>    agents  = new ArrayList<>();
     private volatile List<double[]>     food    = new ArrayList<>();
     private volatile List<double[]>     danger  = new ArrayList<>();
+    private volatile List<double[]>     fires   = new ArrayList<>();
     private volatile double[][][]       ph      = null;
     private volatile int  tick=0,gen=0,popSize=0,specCount=0;
     private volatile String season="";
@@ -109,7 +110,7 @@ public class RendererV7 extends JPanel {
                 }
             }
         }
-        agents=snap;food=new ArrayList<>(world.getFoodList());danger=new ArrayList<>(world.getDangerList());
+        agents=snap;food=new ArrayList<>(world.getFoodList());danger=new ArrayList<>(world.getDangerList());fires=new ArrayList<>(world.getFireList());
         // Abgestorbene Todes-Animationen und ungültige Selektion aufräumen
         deathAnims.removeIf(d->(tick-d.startTick)>90);
         if(selectedId!=null&&snap.stream().noneMatch(a->a.id==selectedId)) selectedId=null;
@@ -134,6 +135,23 @@ public class RendererV7 extends JPanel {
         for(double[] f:food){if(f[2]<=0)continue;int px=(int)(f[0]*sx),py=(int)(f[1]*sy),sz=(int)(2+f[2]/f[3]*7);g2.setColor(new Color(45,200,65,(int)(90+f[2]/f[3]*165)));g2.fillOval(px-sz/2,py-sz/2,sz,sz);}
         g2.setStroke(new BasicStroke(1.5f));
         for(double[] d:danger){int px=(int)(d[0]*sx),py=(int)(d[1]*sy),r=(int)(d[2]*sx);g2.setColor(new Color(200,30,30,32));g2.fillOval(px-r,py-r,r*2,r*2);g2.setColor(new Color(255,60,60,90));g2.drawOval(px-r,py-r,r*2,r*2);}
+        // ── Lagerfeuer ──
+        for(double[] f:fires){
+            int px=(int)(f[0]*sx),py=(int)(f[1]*sy);
+            int wr=(int)(f[2]*sx*0.55); // Wärme-Aura
+            float flicker=0.75f+0.25f*(float)Math.sin(tick*0.18+f[0]*0.07);
+            g2.setColor(new Color(1f,0.35f*flicker,0f,0.10f*flicker));
+            g2.fillOval(px-wr,py-wr,wr*2,wr*2);
+            int mr=(int)(f[2]*sx*0.18); // Mittlerer Glanz
+            g2.setColor(new Color(1f,0.55f+0.15f*flicker,0.05f,0.30f));
+            g2.fillOval(px-mr,py-mr,mr*2,mr*2);
+            int cr=4+(int)(2*flicker); // Kern
+            g2.setColor(new Color(1f,0.92f,0.45f,0.95f));
+            g2.fillOval(px-cr,py-cr,cr*2,cr*2);
+            g2.setColor(new Color(255,120,20,200));
+            g2.setFont(new Font("SansSerif",Font.BOLD,9));
+            g2.drawString("Feuer",px-13,py-cr-3);
+        }
         g2.setStroke(new BasicStroke(1f));
         for(AgentSnap a:agents){
             int px=(int)(a.x*sx),py=(int)(a.y*sy);
