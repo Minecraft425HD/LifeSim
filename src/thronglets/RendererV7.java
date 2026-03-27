@@ -93,7 +93,7 @@ public class RendererV7 extends JPanel {
         for(AgentSnap a:agents){
             int px=(int)(a.x*sx),py=(int)(a.y*sy);
             int r=switch(a.stage){case "Ei"->4;case "Baby"->5;case "Jugend"->7;case "Aeltester"->8;default->9;};
-            if(a.freeEnergy>0.1f){int halo=(int)(r+a.freeEnergy*30);g2.setColor(new Color(180,100,255,(int)(a.freeEnergy*60)));g2.fillOval(px-halo,py-halo,halo*2,halo*2);}
+            if(a.freeEnergy>0.1f){int halo=(int)(r+a.freeEnergy*30);g2.setColor(new Color(180,100,255,Math.min(255,(int)(a.freeEnergy*60))));g2.fillOval(px-halo,py-halo,halo*2,halo*2);}
             int spikeCount=0;if(a.hiddenSpikes!=null)for(boolean s:a.hiddenSpikes)if(s)spikeCount++;
             if(spikeCount>4){float spikeAlpha=Math.min(0.7f,spikeCount/20f);g2.setColor(new Color(1f,1f,0.5f,spikeAlpha));g2.fillOval(px-r-2,py-r-2,(r+2)*2,(r+2)*2);}
             float vv=(float)((a.valence+1)/2.0);g2.setColor(new Color(1f-vv,vv*0.8f,0.2f,0.3f));g2.fillOval(px-r-3,py-r-3,(r+3)*2,(r+3)*2);
