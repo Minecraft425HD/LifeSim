@@ -44,7 +44,7 @@ public class World {
             if(f[2]<=0){
                 // Aufgefressen: Respawn-Countdown (f[4]>0 = läuft, f[4]==0 = gerade erschöpft)
                 if(f[4]==0){
-                    f[4]=120; // Countdown starten
+                    f[4]=100; // Countdown starten
                 } else {
                     f[4]--;
                     if(f[4]==0){
@@ -65,10 +65,9 @@ public class World {
     public double consumeFood(double x,double y,double r){
         double tot=0;
         for(double[] f:foodList){
-            double d=dist(x,y,f[0],f[1]);
-            if(d<r&&f[2]>0){
-                double e=Math.min(f[2],12.0*(1-d/r));
-                f[2]-=e;tot+=e;
+            if(f[2]>0 && dist(x,y,f[0],f[1])<r){
+                tot+=f[2]; // alles auf einmal aufessen
+                f[2]=0;
             }
         }
         return tot;
