@@ -8,7 +8,7 @@ public class SimConfig {
 
     // ── Homeostase ──────────────────────────
     public volatile double energyDecayFactor = 0.6;  // 1.0 = original, <1 = spart Energie
-    public volatile double stressIncrease    = 0.02; // Stress pro Tick
+    public volatile double stressIncrease    = 0.005; // Stress pro Tick (war 0.02 – zu hoch)
     public volatile double warmthWinterLoss  = 0.15; // Wärmeverlust pro Tick im Winter
 
     // ── Welt ────────────────────────────────

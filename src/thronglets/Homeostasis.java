@@ -21,7 +21,10 @@ public class Homeostasis {
         if(atFood) drives[0]=Math.min(100,drives[0]+15);
 
         drives[1]+=cfg.stressIncrease;
-        if(inGroup) drives[1]-=0.3;
+        if(inGroup)    drives[1]-=0.3;
+        if(atFood)     drives[1]=Math.max(0,drives[1]-4.0);  // Essen beruhigt
+        if(drives[0]>75) drives[1]=Math.max(0,drives[1]-0.05); // Satt = weniger Stress
+        if(drives[4]>65) drives[1]=Math.max(0,drives[1]-0.15); // Warm = weniger Stress
         drives[1]=clamp(drives[1]);
 
         drives[2]-=DriveType.SOCIAL.decayRate*(inGroup?-1.5:1);

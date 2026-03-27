@@ -27,8 +27,11 @@ public class SimulationV7 implements Runnable {
         neat     = new NEATEvolution(rng);
         renderer = r;
         pop      = new ArrayList<>();
-        for (int i=0;i<START_POP;i++)
-            pop.add(new ThrongletV7(rng.nextDouble()*WORLD_W, rng.nextDouble()*WORLD_H, rng));
+        for (int i=0;i<START_POP;i++) {
+            double a = rng.nextDouble()*2*Math.PI;
+            double rad = rng.nextDouble()*80;
+            pop.add(new ThrongletV7(WORLD_W/2.0+Math.cos(a)*rad, WORLD_H/2.0+Math.sin(a)*rad, rng));
+        }
     }
 
     public void stop() { running=false; }
@@ -132,8 +135,11 @@ public class SimulationV7 implements Runnable {
                 while (genomes.size()<START_POP) genomes.add(new NEATGenome(rng));
                 List<NEATGenome> evolved=neat.evolve(genomes, START_POP);
                 pop.clear();
-                for (NEATGenome g:evolved)
-                    pop.add(new ThrongletV7(rng.nextDouble()*WORLD_W, rng.nextDouble()*WORLD_H, rng));
+                for (NEATGenome g:evolved) {
+                    double a = rng.nextDouble()*2*Math.PI;
+                    double rad = rng.nextDouble()*80;
+                    pop.add(new ThrongletV7(WORLD_W/2.0+Math.cos(a)*rad, WORLD_H/2.0+Math.sin(a)*rad, rng));
+                }
                 System.out.printf("  ↳ Gen %d | Spezies: %d | Aussterbungen: %d%n",
                         generation, neat.speciesCount(), extinctionCount);
             }

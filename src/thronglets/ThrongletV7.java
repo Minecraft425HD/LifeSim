@@ -260,7 +260,9 @@ public class ThrongletV7 {
 
         double dmg = world.dangerDamage(x, y);
         if (dmg > 0) {
-            homeostasis.applyDanger(dmg * (groupId >= 0 ? 0.55 : 1.0));
+            double eff = dmg * (groupId >= 0 ? 0.55 : 1.0);
+            homeostasis.drives[DriveType.ENERGY.id] = Math.max(0, homeostasis.drives[DriveType.ENERGY.id] - eff);
+            // Kein Stress durch Wasser – nur Energie-Drain
             memory.logDanger(world.getTick());
         }
         if (groupId >= 0) homeostasis.applySocial(true);
