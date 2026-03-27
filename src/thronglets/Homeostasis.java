@@ -34,6 +34,8 @@ public class Homeostasis {
         if(s==Season.WINTER) base = cfg.warmthWinterLoss;
         drives[4]-=base;
 
+        drives[5]-=0.01; // Vitalität: sehr langsamer natürlicher Verfall
+
         for(int i=0;i<drives.length;i++) drives[i]=clamp(drives[i]);
         updateEmotion();
     }
@@ -50,18 +52,23 @@ public class Homeostasis {
 
     private void updateEmotion(){
         double dc=0,ch=0;
+        int n=DriveType.values().length;
         for(DriveType d:DriveType.values()){
             dc+=d.discomfort(drives[d.id]);
             ch+=Math.abs(drives[d.id]-prev[d.id]);
         }
-        valence=Math.max(-1,Math.min(1,1-2*dc/5));
+        valence=Math.max(-1,Math.min(1,1-2*dc/n));
         arousal=Math.min(1,ch/10);
     }
 
     public boolean isDead(){return drives[0]<=0||drives[1]>=100||drives[4]<=0;}
     public double wellbeing(){
         double d=0;for(DriveType t:DriveType.values())d+=t.discomfort(drives[t.id]);
-        return 1-d/5;
+        return 1-d/DriveType.values().length;
+    }
+
+    public void applyVitalityBoost(double v){
+        drives[DriveType.VITALITY.id]=Math.min(100,drives[DriveType.VITALITY.id]+v);
     }
     public float[] toInputVector(){
         float[] v=new float[7];

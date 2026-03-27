@@ -46,9 +46,13 @@ public class RendererV7 extends JPanel {
         boolean[] hiddenSpikes,outputSpikes;
         Signal signal;
         int reprodCooldown;
+        int reproductionCount;
+        int exploredCount;
         AgentSnap(ThrongletV7 t, boolean alpha) {
             x=t.x;y=t.y;fitness=t.fitness;id=t.id;groupId=t.groupId;age=t.memory.age;
             reprodCooldown=t.reprodCooldown;
+            reproductionCount=t.reproductionCount;
+            exploredCount=t.exploredCount;
             speciesId=t.genome.speciesId;stage=t.stage.label;isAlpha=alpha;signal=t.signalOut;
             energy=t.homeostasis.drives[0];valence=t.homeostasis.valence;arousal=t.homeostasis.arousal;
             homeoDrives=t.homeostasis.drives.clone();thought=t.lastThought;
@@ -237,25 +241,39 @@ public class RendererV7 extends JPanel {
             g2.setColor(new Color(140,140,180)); g2.setFont(new Font("SansSerif",Font.PLAIN,8));
             g2.drawString(dl[i],bx+8,by+16);
         }
+        // Vitalitäts-Balken (volle Breite, lila/gold)
+        if(sel.homeoDrives.length>5){
+            double vit=sel.homeoDrives[5]/100.0;
+            int vx=panelX+4,vy=panelY+74,vw=155,vh=4;
+            g2.setColor(new Color(30,20,50)); g2.fillRect(vx,vy,vw,vh);
+            Color vitCol=vit>0.7?new Color(200,80,255):vit>0.4?new Color(150,60,200):new Color(100,40,140);
+            g2.setColor(vitCol); g2.fillRect(vx,vy,(int)(vw*vit),vh);
+            g2.setFont(new Font("SansSerif",Font.PLAIN,8)); g2.setColor(new Color(200,150,255));
+            g2.drawString(String.format("Vi %.0f%%",vit*100),vx+vw+3,vy+5);
+        }
         // Aktueller Gedanke
         if(sel.thought!=null&&!sel.thought.equals("…")){
             g2.setFont(new Font("SansSerif",Font.ITALIC,9)); g2.setColor(new Color(160,255,160));
             String th=sel.thought.length()>20?sel.thought.substring(0,20):sel.thought;
-            g2.drawString("\u201e"+th+"\u201c",panelX+5,panelY+84);
+            g2.drawString("\u201e"+th+"\u201c",panelX+5,panelY+92);
         }
         // Reproduktions-Status
         g2.setFont(new Font("SansSerif",Font.PLAIN,9));
         if(sel.reprodCooldown>0){
             g2.setColor(new Color(180,120,120));
-            g2.drawString("Reprod. in "+sel.reprodCooldown+" T",panelX+5,panelY+97);
+            g2.drawString("Reprod. in "+sel.reprodCooldown+" T",panelX+5,panelY+105);
         } else {
             double val=sel.valence;
-            if(val>0.5){g2.setColor(new Color(120,255,120));g2.drawString("Bereit zur Paarung",panelX+5,panelY+97);}
-            else{g2.setColor(new Color(160,160,200));g2.drawString(String.format("Valenz %.2f/0.5",val),panelX+5,panelY+97);}
+            if(val>0.5){g2.setColor(new Color(120,255,120));g2.drawString("Bereit zur Paarung",panelX+5,panelY+105);}
+            else{g2.setColor(new Color(160,160,200));g2.drawString(String.format("Valenz %.2f/0.5",val),panelX+5,panelY+105);}
         }
+        // Meilensteine
+        g2.setFont(new Font("SansSerif",Font.PLAIN,8)); g2.setColor(new Color(200,150,255));
+        int exPct=(int)(sel.exploredCount/4.0); // 400 Zellen = 100%
+        g2.drawString(String.format("Erforschung %d%%  Nachkomm. x%d",exPct,sel.reproductionCount),panelX+5,panelY+117);
         // Hinweis
         g2.setFont(new Font("SansSerif",Font.PLAIN,7)); g2.setColor(new Color(90,90,120));
-        g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+110);
+        g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+128);
     }
 
     private void drawWater(Graphics2D g2){

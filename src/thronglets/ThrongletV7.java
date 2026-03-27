@@ -37,6 +37,13 @@ public class ThrongletV7 {
     public String lastThought = "…";
     /** Abkühlzeit bis zur nächsten Reproduktion (in Ticks) */
     public int    reprodCooldown = 0;
+    /** Lebens-Meilensteine */
+    public int    reproductionCount = 0;
+    public int    exploredCount     = 0;
+    private final boolean[] exploredGrid = new boolean[400]; // 20×20 Gitter
+    private boolean exMile25=false,exMile50=false,exMile75=false,exMile100=false;
+    private boolean reMile1=false,reMile5=false,reMile10=false;
+    private boolean ageMile500=false,ageMile1000=false,ageMile2000=false;
 
     private final Random rng;
     private final long   brainSeed;
@@ -95,10 +102,12 @@ public class ThrongletV7 {
         lastThought = brain.getLastThought();
 
         // ④ Priorisiertes Verhalten (Wasser > Hunger > Kälte > Paarung > Erkunden)
-        double waterD = world.waterDepthAt(x, y);
-        // Wasser bremst: Flachwasser 30% langsamer, Tiefwasser bis 65% langsamer
-        double speed  = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod
-                      * (1.0 - waterD * 0.65);
+        double waterD   = world.waterDepthAt(x, y);
+        double vitality = homeostasis.drives[DriveType.VITALITY.id];
+        // Vitalität: hohe Vitalität = schneller und widerstandsfähiger
+        double vitalMod = 0.9 + vitality / 500.0; // 0→0.9×, 50→1.0×, 100→1.1×
+        double speed    = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod
+                        * (1.0 - waterD * 0.65) * vitalMod;
         double energy = homeostasis.drives[DriveType.ENERGY.id];
         double warmth = homeostasis.drives[DriveType.WARMTH.id];
 
@@ -250,6 +259,26 @@ public class ThrongletV7 {
         // ⑨ Homeostase
         homeostasis.tick(world.currentSeason, groupId >= 0, moved, atFood);
 
+        // Vitalität: passive Boni bei hoher Vitalität
+        double vit = homeostasis.drives[DriveType.VITALITY.id];
+        if (vit > 70) {
+            homeostasis.drives[DriveType.ENERGY.id] = Math.min(100, homeostasis.drives[DriveType.ENERGY.id] + 0.08);
+            homeostasis.drives[DriveType.STRESS.id] = Math.max(0,  homeostasis.drives[DriveType.STRESS.id] - 0.08);
+        }
+
+        // Karte erkunden – 20×20-Gitter tracken
+        int cellX = Math.min(19, (int)(x * 20 / world.width));
+        int cellY = Math.min(19, (int)(y * 20 / world.height));
+        int cell  = cellY * 20 + cellX;
+        if (!exploredGrid[cell]) {
+            exploredGrid[cell] = true;
+            exploredCount++;
+            checkExplorationMilestones();
+        }
+
+        // Alters-Meilensteine
+        checkAgeMilestones();
+
         // Wärme von Lagerfeuern anwenden
         double fireWarmth = world.warmthAt(x, y);
         if (fireWarmth > 0) {
@@ -290,6 +319,8 @@ public class ThrongletV7 {
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
             reprodCooldown = critical ? 150 : 400;  // Kürzere Pause wenn Art bedroht
+            reproductionCount++;
+            checkReproductionMilestones();
             fitness += 12;
             memory.logMate(world.getTick());
             brain.reinforce(3, 2.0f);
@@ -301,6 +332,27 @@ public class ThrongletV7 {
         }
 
         return null;
+    }
+
+    // ─── Meilenstein-Methoden ────────────────────────────────────────────────
+
+    private void checkExplorationMilestones() {
+        if (!exMile25  && exploredCount >= 100) { exMile25=true;  homeostasis.applyVitalityBoost(8);  fitness+=5; }
+        if (!exMile50  && exploredCount >= 200) { exMile50=true;  homeostasis.applyVitalityBoost(10); fitness+=8; }
+        if (!exMile75  && exploredCount >= 300) { exMile75=true;  homeostasis.applyVitalityBoost(12); fitness+=10; }
+        if (!exMile100 && exploredCount >= 400) { exMile100=true; homeostasis.applyVitalityBoost(15); fitness+=15; }
+    }
+
+    private void checkReproductionMilestones() {
+        if (!reMile1  && reproductionCount >= 1)  { reMile1=true;  homeostasis.applyVitalityBoost(10); fitness+=8; }
+        if (!reMile5  && reproductionCount >= 5)  { reMile5=true;  homeostasis.applyVitalityBoost(12); fitness+=12; }
+        if (!reMile10 && reproductionCount >= 10) { reMile10=true; homeostasis.applyVitalityBoost(15); fitness+=20; }
+    }
+
+    private void checkAgeMilestones() {
+        if (!ageMile500  && memory.age >= 500)  { ageMile500=true;  homeostasis.applyVitalityBoost(5);  fitness+=4; }
+        if (!ageMile1000 && memory.age >= 1000) { ageMile1000=true; homeostasis.applyVitalityBoost(8);  fitness+=8; }
+        if (!ageMile2000 && memory.age >= 2000) { ageMile2000=true; homeostasis.applyVitalityBoost(10); fitness+=12; }
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
@@ -371,6 +423,9 @@ public class ThrongletV7 {
 
         // [24] Populationsdruck: 0 = volle Pop, 1 = Aussterben droht
         inp[24] = (float) Math.max(0, 1.0 - (double) totalPop / SimulationV7.MAX_POP);
+
+        // [25] Vitalität (normiert)
+        inp[25] = (float)(homeostasis.drives[DriveType.VITALITY.id] / 100.0);
 
         return inp;
     }
