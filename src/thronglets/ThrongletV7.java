@@ -90,8 +90,12 @@ public class ThrongletV7 {
         if (flee) {
             double[] esc=escapeDir(world); mx=esc[0]*speed*2.5; my=esc[1]*speed*2.5;
         } else {
-            mx=(out[0]*2-1)*speed*(1+homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
-            my=(out[1]*2-1)*speed*(1+homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
+            // Genetische Basisrichtung [0,2π] + SNN-Modulation ±90°
+            double snnMod = (out[0] - 0.5) * Math.PI;
+            double angle  = gene.epiBias * 2 * Math.PI + snnMod;
+            double spd    = speed * (1 + homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
+            mx = Math.cos(angle) * spd;
+            my = Math.sin(angle) * spd;
             // FEP-modulated: gehe zur Nahrung wenn Energie-Belief niedrig
             if (homeostasis.drives[DriveType.ENERGY.id]<40) {
                 double[] grad=world.niche.gradient(x,y,PheromoneType.FOOD_TRAIL,gene.sensorRange);
@@ -106,6 +110,12 @@ public class ThrongletV7 {
 
         double moved=Math.sqrt(mx*mx+my*my);
         if (memory.isStuck()&&!flee){mx+=rng.nextGaussian()*speed;my+=rng.nextGaussian()*speed;}
+        // Wandabstoßung: sanfte Kraft die Agenten von den Rändern wegdrängt
+        double wd=30.0;
+        if (x<wd)              mx+=(wd-x)/wd*speed*1.2;
+        if (x>world.width-wd)  mx-=(x-(world.width-wd))/wd*speed*1.2;
+        if (y<wd)              my+=(wd-y)/wd*speed*1.2;
+        if (y>world.height-wd) my-=(y-(world.height-wd))/wd*speed*1.2;
         if (stage.canMove()){x=world.clampX(x+mx);y=world.clampY(y+my);}
 
         // ⑤ Pheromone
@@ -150,7 +160,7 @@ public class ThrongletV7 {
         fitness+=homeostasis.wellbeing()*0.12+0.05;
         // FEP-Bonus: niedriger Vorhersagefehler = Welt wird verstanden = Fitness-Bonus
         if (brain.getPredError()<0.15) fitness+=0.03;
-        memory.tick(new double[]{homeostasis.drives[DriveType.ENERGY.id]/100.0});
+        memory.tick(new double[]{homeostasis.drives[DriveType.ENERGY.id]/100.0, x/world.width, y/world.height});
 
         if (homeostasis.isDead()) { alive=false; return null; }
 

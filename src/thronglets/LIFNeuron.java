@@ -17,6 +17,7 @@ public class LIFNeuron {
     public static final float DECAY       = 0.92f;  // Leck-Konstante (τ)
     public static final float TRACE_DECAY = 0.85f;  // Eligibility-Trace Decay
     public static final int   REFRAC_TICKS = 2;     // Refraktärzeit (Ticks)
+    public static final float TONIC_BIAS  = 2.0f;   // Tonus-Strom: sorgt für Hintergrund-Feuern
 
     // ── Zustand ───────────────────────────────────────────────
     public float   V          = V_REST;   // Membranpotenzial
@@ -36,7 +37,7 @@ public class LIFNeuron {
             refracLeft--;
             V = V_RESET;
         } else {
-            V = V * DECAY + I;
+            V = V_REST + (V - V_REST) * DECAY + I + TONIC_BIAS;
             if (V >= V_THRESH) {
                 spiked     = true;
                 V          = V_RESET;

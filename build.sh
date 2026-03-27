@@ -7,9 +7,9 @@ echo "║  THRONGLETS V7  –  MAXIMUM LIFE                 ║"
 echo "║  SNN + FEP (Friston) + NanoTransformer          ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
-mkdir -p out
+rm -rf out && mkdir -p out
 echo "🔨 Kompiliere alle Klassen..."
-javac -d out src/thronglets/*.java
+javac --release 21 -d out src/thronglets/*.java
 echo "✅ Kompilierung erfolgreich!"
 echo ""
 echo "🚀 Starte Simulation..."
