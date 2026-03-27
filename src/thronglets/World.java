@@ -7,11 +7,14 @@ public class World {
     private static final int SEASON_LEN=500;
     protected final List<double[]> foodList=new ArrayList<>();
     protected final List<double[]> dangerList=new ArrayList<>();
+    private final Random rng;
     public World(double w,double h,int food,int danger,Random rng){
+        this.rng=rng;
         width=w;height=h;
         for(int i=0;i<food;i++){double mx=12+rng.nextDouble()*22;foodList.add(new double[]{rng.nextDouble()*w,rng.nextDouble()*h,mx*0.8,mx});}
         for(int i=0;i<danger;i++) dangerList.add(new double[]{rng.nextDouble()*w,rng.nextDouble()*h,18+rng.nextDouble()*22});
     }
+    public void addFood(double x,double y){double max=14+rng.nextDouble()*18;foodList.add(new double[]{clampX(x),clampY(y),max,max});}
     public void tick(){
         tickCount++; seasonTick++;
         if(seasonTick>=SEASON_LEN){seasonTick=0;currentSeason=Season.values()[(currentSeason.ordinal()+1)%4];}

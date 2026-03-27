@@ -42,6 +42,8 @@ public class SimulationV7 implements Runnable {
 
         while (running) {
             long t0 = System.currentTimeMillis();
+            // Spieler-platzierte Nahrung einfügen
+            if (renderer != null) { double[] fp; while ((fp=renderer.getFoodQueue().poll())!=null) world.addFood(fp[0],fp[1]); }
             world.tick();
             updateGroups();
 
@@ -65,6 +67,11 @@ public class SimulationV7 implements Runnable {
             }
 
             pop.addAll(newborns);
+            // Todesereignisse für Renderer erfassen
+            if (renderer != null) for (ThrongletV7 t : pop) if (!t.alive) {
+                String cause = t.homeostasis.drives[0]<=0.1?"Hunger":t.homeostasis.drives[1]>=99.9?"Stress":t.homeostasis.drives[4]<=0.1?"Kälte":"Alter";
+                renderer.addDeath(t.x, t.y, world.getTick(), cause);
+            }
             pop.removeIf(t->!t.alive);
             groups.values().forEach(Group::tick);
             for (ThrongletV7 t:pop) t.genome.fitness=t.fitness;
