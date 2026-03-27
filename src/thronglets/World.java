@@ -23,8 +23,7 @@ public class World {
             double mx = 12 + rng.nextDouble() * 22;
             foodList.add(new double[]{clampX(fx), clampY(fy), mx*0.8, mx});
         }
-        for(int i=0;i<danger;i++)
-            dangerList.add(new double[]{rng.nextDouble()*w,rng.nextDouble()*h,18+rng.nextDouble()*22});
+        // Keine zufälligen Gefahrenzonen – Wasser übernimmt diese Rolle (dangerCount = 0)
     }
 
     public void addFood(double x,double y){
@@ -73,20 +72,26 @@ public class World {
         return bf!=null?new double[]{bf[0],bf[1]}:null;
     }
 
-    public double nearestDangerDist(double x,double y){
-        double best=width;
-        for(double[] d:dangerList)
-            best=Math.min(best,dist(x,y,d[0],d[1]));
-        return best;
+    /**
+     * Wassertiefe an Position (x,y): 0 = kein Wasser, 1 = tiefes Wasser direkt am Rand.
+     * Flachwasser beginnt 70px vom Rand, Tiefwasser ab 35px.
+     */
+    public double waterDepthAt(double x, double y) {
+        double d = Math.min(Math.min(x, width-x), Math.min(y, height-y));
+        if (d >= 70) return 0;
+        return (70 - d) / 70.0; // linear: 0 bei 70px, 1 bei 0px (Rand)
     }
 
-    public double dangerDamage(double x,double y){
-        double tot=0;
-        for(double[] d:dangerList){
-            double dd=dist(x,y,d[0],d[1]);
-            if(dd<d[2]) tot += 3.0*(1-dd/d[2]);
-        }
-        return tot * SimConfig.INSTANCE.dangerStrength;
+    /** Distanz zur Wasserzone (0 wenn im Wasser, positiv wenn auf Land) */
+    public double nearestDangerDist(double x, double y) {
+        double d = Math.min(Math.min(x, width-x), Math.min(y, height-y));
+        return Math.max(0, d - 70);
+    }
+
+    /** Schaden durch Wasser: Tiefes Wasser schadet mehr */
+    public double dangerDamage(double x, double y) {
+        double depth = waterDepthAt(x, y);
+        return depth > 0 ? depth * 2.0 * SimConfig.INSTANCE.dangerStrength : 0;
     }
 
     public double clampX(double x){return Math.max(0,Math.min(width-1,x));}

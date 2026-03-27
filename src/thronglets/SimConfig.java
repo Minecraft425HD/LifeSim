@@ -14,7 +14,7 @@ public class SimConfig {
     // ── Welt ────────────────────────────────
     public volatile int    baseFoodCount     = 55;   // Start-Food in SimulationV7
     public volatile double foodRegenFactor   = 1.2;  // Multiplikator auf Food-Regeneration
-    public volatile int    dangerCount       = 7;    // Anzahl Danger-Kreise
+    public volatile int    dangerCount       = 0;    // 0 = Wasser übernimmt Rand-Gefahren
     public volatile double dangerStrength    = 1.0;  // Multiplikator für Danger-Schaden
 
     // Singleton-Instanz

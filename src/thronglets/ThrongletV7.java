@@ -94,13 +94,17 @@ public class ThrongletV7 {
         // ③ Innerer Monolog
         lastThought = brain.getLastThought();
 
-        // ④ Priorisiertes Verhalten (Hunger > Kälte > Paarung > Erkunden)
-        double speed  = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod;
+        // ④ Priorisiertes Verhalten (Wasser > Hunger > Kälte > Paarung > Erkunden)
+        double waterD = world.waterDepthAt(x, y);
+        // Wasser bremst: Flachwasser 30% langsamer, Tiefwasser bis 65% langsamer
+        double speed  = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod
+                      * (1.0 - waterD * 0.65);
         double energy = homeostasis.drives[DriveType.ENERGY.id];
         double warmth = homeostasis.drives[DriveType.WARMTH.id];
 
-        boolean flee   = out[6] > gene.fearThreshold
-                      && world.nearestDangerDist(x, y) < gene.sensorRange;
+        boolean flee   = waterD > 0.25                              // Wasser → sofort fliehen
+                      || (out[6] > gene.fearThreshold
+                          && world.nearestDangerDist(x, y) < gene.sensorRange);
         boolean hungry = energy < 40;
         boolean cold   = warmth < 30;
 
@@ -371,6 +375,14 @@ public class ThrongletV7 {
 
     private double[] escapeDir(World world) {
         double ex = 0, ey = 0;
+        // Wasser-Flucht: direkt zur Kartenmitte (stärker je tiefer das Wasser)
+        double depth = world.waterDepthAt(x, y);
+        if (depth > 0) {
+            double toCx = world.width/2 - x, toCy = world.height/2 - y;
+            double dist = Math.sqrt(toCx*toCx + toCy*toCy);
+            if (dist > 0) { ex += toCx/dist * depth * 3; ey += toCy/dist * depth * 3; }
+        }
+        // Klassische Gefahren-Flucht (falls noch Danger-Circles vorhanden)
         for (double[] d : world.getDangerList()) {
             double dx   = x - d[0], dy = y - d[1];
             double dist = Math.sqrt(dx*dx + dy*dy);

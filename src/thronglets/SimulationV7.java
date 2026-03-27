@@ -99,6 +99,24 @@ public class SimulationV7 implements Runnable {
             }
 
             groups.values().forEach(Group::tick);
+
+            // ── Nest-Bonus: 3+ Agenten im Zentrum (Radius 120px) = Gemeinschaftsbonus ──
+            {
+                final double nestR=120.0, cx=WORLD_W/2.0, cy=WORLD_H/2.0;
+                int nc=0;
+                for (ThrongletV7 t:pop) if(t.alive&&World.dist(t.x,t.y,cx,cy)<nestR) nc++;
+                final boolean nestActive=nc>=3;
+                for (ThrongletV7 t:pop) {
+                    if(!t.alive||World.dist(t.x,t.y,cx,cy)>=nestR) continue;
+                    // Immer: weniger Stress, mehr Wärme im Zentrum
+                    t.homeostasis.drives[DriveType.STRESS.id]=Math.max(0,t.homeostasis.drives[DriveType.STRESS.id]-2.5);
+                    t.homeostasis.drives[DriveType.WARMTH.id]=Math.min(100,t.homeostasis.drives[DriveType.WARMTH.id]+0.8);
+                    // Nur wenn Rudel aktiv: Fitness-Bonus + halber Reprod.-Cooldown
+                    if(nestActive){ if(t.reprodCooldown>200) t.reprodCooldown=200; t.fitness+=0.15; }
+                }
+                if(renderer!=null) renderer.setNestCount(nc);
+            }
+
             for (ThrongletV7 t:pop) t.genome.fitness=t.fitness;
 
             if (world.getTick()%3==0&&renderer!=null)

@@ -30,6 +30,7 @@ public class RendererV7 extends JPanel {
     private final CopyOnWriteArrayList<DeathAnim> deathAnims = new CopyOnWriteArrayList<>();
     private volatile int extinctionCount = 0;
     private volatile long extinctionFlashUntil = 0;
+    private volatile int nestCount = 0;
 
     static class DeathAnim {
         final double x,y; final int startTick; final String cause;
@@ -93,6 +94,7 @@ public class RendererV7 extends JPanel {
     public ConcurrentLinkedQueue<double[]> getFoodQueue(){return foodQueue;}
     public void addDeath(double x,double y,int tick,String cause){deathAnims.add(new DeathAnim(x,y,tick,cause));}
     public void notifyExtinction(int count){extinctionCount=count;extinctionFlashUntil=System.currentTimeMillis()+6000;}
+    public void setNestCount(int n){nestCount=n;}
 
     public synchronized void update(List<ThrongletV7> pop, WorldV6 world,
                                      Map<Integer,Group> gmap, int g, int sp) {
@@ -136,7 +138,9 @@ public class RendererV7 extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         double sx=WV/worldW,sy=HT/worldH;
         g2.setColor(new Color(7,9,20));g2.fillRect(0,0,WV,HT);
+        drawWater(g2);
         drawPhero(g2,sx,sy);
+        drawNestZone(g2,sx,sy);
         for(double[] f:food){if(f[2]<=0)continue;int px=(int)(f[0]*sx),py=(int)(f[1]*sy),sz=(int)(2+f[2]/f[3]*7);g2.setColor(new Color(45,200,65,(int)(90+f[2]/f[3]*165)));g2.fillOval(px-sz/2,py-sz/2,sz,sz);}
         g2.setStroke(new BasicStroke(1.5f));
         for(double[] d:danger){int px=(int)(d[0]*sx),py=(int)(d[1]*sy),r=(int)(d[2]*sx);g2.setColor(new Color(200,30,30,32));g2.fillOval(px-r,py-r,r*2,r*2);g2.setColor(new Color(255,60,60,90));g2.drawOval(px-r,py-r,r*2,r*2);}
@@ -252,6 +256,59 @@ public class RendererV7 extends JPanel {
         // Hinweis
         g2.setFont(new Font("SansSerif",Font.PLAIN,7)); g2.setColor(new Color(90,90,120));
         g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+110);
+    }
+
+    private void drawWater(Graphics2D g2){
+        // Wassertiefe 70px vom Rand: Flachwasser (hellblau) → Tiefwasser (dunkelblau)
+        double sx=WV/worldW,sy=HT/worldH;
+        int wl=(int)(70*sx),wt=(int)(70*sy);
+        // Flaches Wasser (halbe Tiefe, helleres Blau)
+        g2.setPaint(new java.awt.GradientPaint(0,0,new Color(30,100,220,120),wl,0,new Color(30,100,220,0)));
+        g2.fillRect(0,0,wl,HT);
+        g2.setPaint(new java.awt.GradientPaint(WV,0,new Color(30,100,220,120),WV-wl,0,new Color(30,100,220,0)));
+        g2.fillRect(WV-wl,0,wl,HT);
+        g2.setPaint(new java.awt.GradientPaint(0,0,new Color(30,100,220,120),0,wt,new Color(30,100,220,0)));
+        g2.fillRect(0,0,WV,wt);
+        g2.setPaint(new java.awt.GradientPaint(0,HT,new Color(30,100,220,120),0,HT-wt,new Color(30,100,220,0)));
+        g2.fillRect(0,HT-wt,WV,wt);
+        // Tiefes Wasser (äußerste 35px, dunkleres Blau)
+        int dl=(int)(35*sx),dt=(int)(35*sy);
+        g2.setPaint(new java.awt.GradientPaint(0,0,new Color(8,40,160,170),dl,0,new Color(8,40,160,0)));
+        g2.fillRect(0,0,dl,HT);
+        g2.setPaint(new java.awt.GradientPaint(WV,0,new Color(8,40,160,170),WV-dl,0,new Color(8,40,160,0)));
+        g2.fillRect(WV-dl,0,dl,HT);
+        g2.setPaint(new java.awt.GradientPaint(0,0,new Color(8,40,160,170),0,dt,new Color(8,40,160,0)));
+        g2.fillRect(0,0,WV,dt);
+        g2.setPaint(new java.awt.GradientPaint(0,HT,new Color(8,40,160,170),0,HT-dt,new Color(8,40,160,0)));
+        g2.fillRect(0,HT-dt,WV,dt);
+        g2.setPaint(null);
+        // Beschriftung
+        g2.setFont(new Font("SansSerif",Font.PLAIN,8));
+        g2.setColor(new Color(80,160,255,180)); g2.drawString("~Flachwasser",4,HT/2);
+        g2.setColor(new Color(40,80,200,180));  g2.drawString("~Tiefwasser",4,HT/2+11);
+    }
+
+    private void drawNestZone(Graphics2D g2,double sx,double sy){
+        int cx=(int)(worldW/2*sx),cy=(int)(worldH/2*sy),nr=(int)(120*Math.min(sx,sy));
+        if(nestCount>=3){
+            float pulse=0.55f+0.45f*(float)Math.sin(tick*0.05);
+            g2.setColor(new Color(1f,0.85f,0.1f,0.13f*pulse));
+            g2.fillOval(cx-nr,cy-nr,nr*2,nr*2);
+            g2.setColor(new Color(1f,0.85f,0.1f,0.55f));
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawOval(cx-nr,cy-nr,nr*2,nr*2);
+            g2.setStroke(new BasicStroke(1f));
+            g2.setFont(new Font("SansSerif",Font.BOLD,10));
+            g2.setColor(new Color(255,220,50));
+            g2.drawString("NEST ("+nestCount+")",cx-25,cy-nr-4);
+        } else {
+            g2.setColor(new Color(1f,0.85f,0.1f,0.05f));
+            g2.fillOval(cx-nr,cy-nr,nr*2,nr*2);
+            g2.setColor(new Color(1f,0.85f,0.1f,0.18f));
+            g2.setStroke(new BasicStroke(1f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND,0,new float[]{4,4},0));
+            g2.drawOval(cx-nr,cy-nr,nr*2,nr*2);
+            g2.setStroke(new BasicStroke(1f));
+        }
     }
 
     private void drawSurvivalWarning(Graphics2D g2){
