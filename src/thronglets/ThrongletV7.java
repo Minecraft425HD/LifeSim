@@ -5,13 +5,13 @@ import java.util.*;
 /**
  * Thronglet V7 – Das Maximum.
  *
- * Gehirn:      TripleLayerBrain (SNN + FEP + Nano-Transformer)
- * Reflexe:     SNN (LIF-Neuronen, STDP, Spikes sichtbar im Renderer)
- * Kognition:   FEP (Beliefs, Freie Energie, Active Inference)
- * Metakognition: NanoTransformer (Intention + innerer Monolog)
- * Physiologie: Homeostase (5 Triebe, proto-Emotionen)
- * Nische:      Pheromone (NEAT-Welt aus V6)
- * Evolution:   SNN-Gewichte + NEATGenome für Topologie
+ * Gehirn:       TripleLayerBrain (SNN + FEP + Nano-Transformer)
+ *   Reflexe:    SNN (LIF-Neuronen, STDP, Spikes sichtbar im Renderer)
+ *   Kognition:  FEP (Beliefs, Freie Energie, Active Inference)
+ *   Metakognition: NanoTransformer (Intention + innerer Monolog)
+ * Physiologie:  Homeostase (5 Triebe, proto-Emotionen)
+ * Nische:       Pheromone (NEAT-Welt aus V6)
+ * Evolution:    SNN-Gewichte + NEATGenome für Topologie
  */
 public class ThrongletV7 {
 
@@ -19,59 +19,68 @@ public class ThrongletV7 {
 
     public final int    id;
     public double       x, y;
-    public boolean      alive   = true;
-    public LifeStage    stage   = LifeStage.EGG;
-    public int          groupId = -1;
+    public boolean      alive    = true;
+    public LifeStage    stage    = LifeStage.EGG;
+    public int          groupId  = -1;
 
-    public double  fitness   = 0;
-    public double  socialOut = 0;
-    public Signal  signalOut = Signal.NONE;
+    public double       fitness  = 0;
+    public double       socialOut = 0;
+    public Signal       signalOut = Signal.NONE;
 
     public final TripleLayerBrain brain;
     public final Homeostasis      homeostasis;
     public final Gene             gene;
     public final Memory           memory;
-    public final NEATGenome       genome; // Topologie-Gen (von V6 geerbt)
+    public final NEATGenome       genome;
 
-    // Letzter innerer Monolog (für Renderer)
+    /** Letzter innerer Monolog für Renderer */
     public String lastThought = "…";
 
     private final Random rng;
-    private long   brainSeed;
+    private final long   brainSeed;
 
-    // ── Konstruktoren ─────────────────────────────────────────
+    // ─── Konstruktoren ────────────────────────────────────────────────────────
 
     public ThrongletV7(double x, double y, Random rng) {
-        id=nextId++; this.x=x; this.y=y; this.rng=rng;
-        brainSeed = rng.nextLong();
-        brain       = new TripleLayerBrain(brainSeed, rng);
-        homeostasis = new Homeostasis(rng);
-        gene        = new Gene(rng);
-        memory      = new Memory();
-        genome      = new NEATGenome(rng);
-        homeostasis.drives[DriveType.ENERGY.id] = 55+rng.nextDouble()*35;
+        id         = nextId++;
+        this.x     = x;
+        this.y     = y;
+        this.rng   = rng;
+        brainSeed  = rng.nextLong();
+        brain      = new TripleLayerBrain(brainSeed, rng);
+        homeostasis= new Homeostasis(rng);
+        gene       = new Gene(rng);
+        memory     = new Memory();
+        genome     = new NEATGenome(rng);
+        homeostasis.drives[DriveType.ENERGY.id] = 55 + rng.nextDouble() * 35;
     }
 
     public ThrongletV7(double x, double y, ThrongletV7 parent, ThrongletV7 partner, Random rng) {
-        id=nextId++; this.x=x; this.y=y; this.rng=rng;
-        brainSeed = rng.nextLong();
-        brain       = parent.brain.copy(brainSeed, rng);
+        id         = nextId++;
+        this.x     = x;
+        this.y     = y;
+        this.rng   = rng;
+        brainSeed  = rng.nextLong();
+        brain      = parent.brain.copy(brainSeed, rng);
         brain.snn.mutate(rng, parent.gene.mutationRate);
-        homeostasis = new Homeostasis(rng);
-        gene        = Gene.crossover(parent.gene, partner!=null?partner.gene:parent.gene, rng);
-        memory      = new Memory();
-        genome      = NEATGenome.crossover(parent.genome, partner!=null?partner.genome:parent.genome, rng);
+        homeostasis= new Homeostasis(rng);
+        gene       = Gene.crossover(parent.gene, partner != null ? partner.gene : parent.gene, rng);
+        memory     = new Memory();
+        genome     = NEATGenome.crossover(parent.genome,
+                partner != null ? partner.genome : parent.genome, rng);
         genome.mutate(rng);
         homeostasis.drives[DriveType.ENERGY.id] = 45;
     }
 
-    // ── Haupt-Tick ────────────────────────────────────────────
+    // ─── Haupt-Tick ───────────────────────────────────────────────────────────
 
-    public ThrongletV7 tick(WorldV6 world, Signal groupSig, double gfx, double gfy,
-                             ThrongletV7 nearestMate, int groupSize) {
+    public ThrongletV7 tick(WorldV6 world, Signal groupSig,
+                            double gfx, double gfy,
+                            ThrongletV7 nearestMate, int groupSize) {
         if (!alive) return null;
+
         stage = LifeStage.forAge(memory.age);
-        if (memory.age >= LifeStage.ELDER.maxAge) { alive=false; return null; }
+        if (memory.age >= LifeStage.ELDER.maxAge) { alive = false; return null; }
 
         // ① Inputs
         float[] inp = buildInputs(world, groupSig);
@@ -83,129 +92,197 @@ public class ThrongletV7 {
         lastThought = brain.getLastThought();
 
         // ④ Aktionen
-        double speed = gene.moveSpeed * stage.speedMod;
-        boolean flee = out[6] > gene.fearThreshold && world.nearestDangerDist(x,y) < gene.sensorRange;
-        double mx,my;
+        // NEU: Speed via SimConfig
+        double speed  = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod;
+        boolean flee  = out[6] > gene.fearThreshold
+                && world.nearestDangerDist(x, y) < gene.sensorRange;
+        double mx = 0, my = 0;
 
         if (flee) {
-            double[] esc=escapeDir(world); mx=esc[0]*speed*2.5; my=esc[1]*speed*2.5;
+            double[] esc = escapeDir(world);
+            mx = esc[0] * speed * 2.5;
+            my = esc[1] * speed * 2.5;
         } else {
             // Genetische Basisrichtung [0,2π] + SNN-Modulation ±90°
             double snnMod = (out[0] - 0.5) * Math.PI;
             double angle  = gene.epiBias * 2 * Math.PI + snnMod;
-            double spd    = speed * (1 + homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
+            // NEU: Neugier via SimConfig
+            double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
+                    (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
             mx = Math.cos(angle) * spd;
             my = Math.sin(angle) * spd;
-            // FEP-modulated: gehe zur Nahrung wenn Energie-Belief niedrig
-            if (homeostasis.drives[DriveType.ENERGY.id]<40) {
-                double[] grad=world.niche.gradient(x,y,PheromoneType.FOOD_TRAIL,gene.sensorRange);
-                mx+=grad[0]*speed*0.7; my+=grad[1]*speed*0.7;
-            }
-            // Gruppen-Navigation
-            if (gfx>=0&&out[8]>0.5) {
-                double dx=gfx-x,dy=gfy-y,d=Math.sqrt(dx*dx+dy*dy);
-                if(d>1){mx+=dx/d*speed*gene.socialAffinity;my+=dy/d*speed*gene.socialAffinity;}
+        }
+
+        // FEP-moduliert: gehe zur Nahrung wenn Energie-Belief niedrig
+        if (homeostasis.drives[DriveType.ENERGY.id] < 40) {
+            double[] grad = world.niche.gradient(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
+            mx += grad[0] * speed * 0.7;
+            my += grad[1] * speed * 0.7;
+        }
+
+        // Gruppen-Navigation
+        if (gfx >= 0 && out[8] > 0.5) {
+            double dx = gfx - x, dy = gfy - y, d = Math.sqrt(dx*dx + dy*dy);
+            if (d > 1) {
+                mx += dx/d * speed * gene.socialAffinity;
+                my += dy/d * speed * gene.socialAffinity;
             }
         }
 
-        double moved=Math.sqrt(mx*mx+my*my);
-        if (memory.isStuck()&&!flee){mx+=rng.nextGaussian()*speed;my+=rng.nextGaussian()*speed;}
-        // Wandabstoßung: sanfte Kraft die Agenten von den Rändern wegdrängt
-        double wd=30.0;
-        if (x<wd)              mx+=(wd-x)/wd*speed*1.2;
-        if (x>world.width-wd)  mx-=(x-(world.width-wd))/wd*speed*1.2;
-        if (y<wd)              my+=(wd-y)/wd*speed*1.2;
-        if (y>world.height-wd) my-=(y-(world.height-wd))/wd*speed*1.2;
-        if (stage.canMove()){x=world.clampX(x+mx);y=world.clampY(y+my);}
+        // Anti-Stuck: zufällige Störung wenn festgehangen
+        double moved = Math.sqrt(mx*mx + my*my);
+        if (memory.isStuck() && !flee) {
+            mx += rng.nextGaussian() * speed;
+            my += rng.nextGaussian() * speed;
+        }
+
+        // ── Wandabstoßung (sanfte Kraft die Agenten von Rändern wegdrängt) ──
+        double wd = 30.0;
+        if (x < wd)
+            mx +=  (wd - x) / wd * speed * 1.2;
+        if (x > world.width - wd)
+            mx -= (x - (world.width - wd)) / wd * speed * 1.2;
+        if (y < wd)
+            my +=  (wd - y) / wd * speed * 1.2;
+        if (y > world.height - wd)
+            my -= (y - (world.height - wd)) / wd * speed * 1.2;
+
+        // ── Positions-Update mit NaN-Guard ──────────────────────────────────
+        if (stage.canMove()) {
+            double nx = world.clampX(x + mx);
+            double ny = world.clampY(y + my);
+            // Sicherheitsnetz: falls NaN/Infinity rein schleicht → reset in die Mitte
+            if (Double.isNaN(nx) || Double.isInfinite(nx)
+                    || Double.isNaN(ny) || Double.isInfinite(ny)) {
+                nx = world.clampX(world.width  * 0.1 + rng.nextDouble() * world.width  * 0.8);
+                ny = world.clampY(world.height * 0.1 + rng.nextDouble() * world.height * 0.8);
+            }
+            x = nx;
+            y = ny;
+        }
 
         // ⑤ Pheromone
         if (stage.canMove()) {
-            world.niche.deposit(x,y,PheromoneType.TRAIL,0.025);
-            if (homeostasis.drives[DriveType.SOCIAL.id]>60)
-                world.niche.deposit(x,y,PheromoneType.SOCIAL,0.04);
+            world.niche.deposit(x, y, PheromoneType.TRAIL, 0.025);
+            if (homeostasis.drives[DriveType.SOCIAL.id] > 60)
+                world.niche.deposit(x, y, PheromoneType.SOCIAL, 0.04);
         }
 
         // ⑥ Nahrung
-        boolean atFood=false;
-        if (out[2]>0.45&&stage!=LifeStage.EGG) {
-            double eaten=world.consumeFood(x,y,gene.sensorRange*0.4);
-            if (eaten>0) {
-                homeostasis.drives[DriveType.ENERGY.id]=Math.min(100,homeostasis.drives[DriveType.ENERGY.id]+eaten);
-                fitness+=eaten*0.4; memory.logFood(world.getTick());
-                world.niche.deposit(x,y,PheromoneType.FOOD_TRAIL,0.15);
-                brain.reinforce(2, (float)(eaten/10.0)); // SNN-Reinforcement: Essen belohnen
-                atFood=true;
+        boolean atFood = false;
+        if (out[2] > 0.45 && stage != LifeStage.EGG) {
+            double eaten = world.consumeFood(x, y, gene.sensorRange * 0.4);
+            if (eaten > 0) {
+                homeostasis.drives[DriveType.ENERGY.id] =
+                        Math.min(100, homeostasis.drives[DriveType.ENERGY.id] + eaten);
+                fitness += eaten * 0.4;
+                memory.logFood(world.getTick());
+                world.niche.deposit(x, y, PheromoneType.FOOD_TRAIL, 0.15);
+                brain.reinforce(2, (float)(eaten / 10.0)); // SNN-Reinforcement: Essen belohnen
+                atFood = true;
             }
         }
 
         // ⑦ Signal
-        if (out[4]>1.0-gene.languageAptitude*0.5&&stage.canMove()) {
-            signalOut=Signal.fromFloat(out[5]); socialOut=gene.socialAffinity;
-        } else {signalOut=Signal.NONE;socialOut=0;}
+        if (out[4] > 1.0 - gene.languageAptitude * 0.5 && stage.canMove()) {
+            signalOut = Signal.fromFloat(out[5]);
+            socialOut = gene.socialAffinity;
+        } else {
+            signalOut = Signal.NONE;
+            socialOut = 0;
+        }
 
         // ⑧ Nest-Marker
-        if (out[7]>0.68&&stage!=LifeStage.EGG)
-            world.niche.deposit(x,y,PheromoneType.NEST,0.08);
+        if (out[7] > 0.68 && stage != LifeStage.EGG)
+            world.niche.deposit(x, y, PheromoneType.NEST, 0.08);
 
         // ⑨ Homeostase
-        homeostasis.tick(world.currentSeason, groupId>=0, moved, atFood);
-        double dmg=world.dangerDamage(x,y);
-        if (dmg>0) {
-            homeostasis.applyDanger(dmg*(groupId>=0?0.55:1.0));
+        homeostasis.tick(world.currentSeason, groupId >= 0, moved, atFood);
+        double dmg = world.dangerDamage(x, y);
+        if (dmg > 0) {
+            homeostasis.applyDanger(dmg * (groupId >= 0 ? 0.55 : 1.0));
             memory.logDanger(world.getTick());
         }
-        if (groupId>=0) homeostasis.applySocial(true);
+        if (groupId >= 0) homeostasis.applySocial(true);
 
         // ⑩ Fitness
-        fitness+=homeostasis.wellbeing()*0.12+0.05;
+        fitness += homeostasis.wellbeing() * 0.12 + 0.05;
         // FEP-Bonus: niedriger Vorhersagefehler = Welt wird verstanden = Fitness-Bonus
-        if (brain.getPredError()<0.15) fitness+=0.03;
-        memory.tick(new double[]{homeostasis.drives[DriveType.ENERGY.id]/100.0, x/world.width, y/world.height});
+        if (brain.getPredError() < 0.15) fitness += 0.03;
 
-        if (homeostasis.isDead()) { alive=false; return null; }
+        memory.tick(new double[]{
+                homeostasis.drives[DriveType.ENERGY.id] / 100.0,
+                x / world.width,
+                y / world.height
+        });
+
+        if (homeostasis.isDead()) { alive = false; return null; }
 
         // ⑪ Reproduktion
-        boolean canRepro = stage.canReproduce()&&memory.age>=(int)gene.reproductionAge
-            &&homeostasis.drives[DriveType.ENERGY.id]>65&&homeostasis.valence>0.1
-            &&out[3]>(1.1-gene.reproductiveDrive*0.5);
+        boolean canRepro = stage.canReproduce()
+                && memory.age >= (int) gene.reproductionAge
+                && homeostasis.drives[DriveType.ENERGY.id] > 65
+                && homeostasis.valence > 0.1
+                && out[3] > (1.1 - gene.reproductiveDrive * 0.5);
         if (canRepro) {
-            homeostasis.drives[DriveType.ENERGY.id]-=30; fitness+=12;
+            homeostasis.drives[DriveType.ENERGY.id] -= 30;
+            fitness += 12;
             memory.logMate(world.getTick());
             brain.reinforce(3, 2.0f); // SNN: Reproduktion belohnen
-            ThrongletV7 child=new ThrongletV7(
-                x+rng.nextGaussian()*8, y+rng.nextGaussian()*8, this, nearestMate, rng);
+            ThrongletV7 child = new ThrongletV7(
+                    x + rng.nextGaussian() * 8,
+                    y + rng.nextGaussian() * 8,
+                    this, nearestMate, rng);
             return child;
         }
+
         return null;
     }
 
+    // ─── Hilfsmethoden ────────────────────────────────────────────────────────
+
+    /** Schützt gegen NaN/Infinity aus FEP und klemmt auf sinnvollen Bereich. */
+    private float safeFloat(double v) {
+        if (Double.isNaN(v) || Double.isInfinite(v)) return 0f;
+        if (v >  1e3) return 1000f;
+        if (v < -1e3) return -1000f;
+        return (float) v;
+    }
+
     private float[] buildInputs(WorldV6 world, Signal groupSig) {
-        float[] h=homeostasis.toInputVector();
-        float[] inp=new float[SpikingBrain.IN];
-        System.arraycopy(h,0,inp,0,Math.min(h.length,7));
-        inp[7] =(float)Math.max(0,1-world.nearestFoodDist(x,y)/gene.sensorRange);
-        inp[8] =(float)Math.max(0,1-world.nearestDangerDist(x,y)/gene.sensorRange);
-        inp[9] =groupSig!=null?(float)groupSig.toFloat():0f;
-        inp[10]=(float)world.currentSeason.toFloat();
-        inp[11]=(float)world.niche.sense(x,y,PheromoneType.FOOD_TRAIL,gene.sensorRange);
-        inp[12]=(float)Math.min(1,memory.age/1500.0);
-        inp[13]=(float)brain.getLastFE();
-        inp[14]=(float)brain.getPredError();
-        inp[15]=(float)brain.getUncertainty();
+        float[] h   = homeostasis.toInputVector();
+        float[] inp = new float[SpikingBrain.IN];
+
+        System.arraycopy(h, 0, inp, 0, Math.min(h.length, 7));
+        inp[7]  = (float) Math.max(0, 1 - world.nearestFoodDist(x, y)   / gene.sensorRange);
+        inp[8]  = (float) Math.max(0, 1 - world.nearestDangerDist(x, y) / gene.sensorRange);
+        inp[9]  = groupSig != null ? (float) groupSig.toFloat() : 0f;
+        inp[10] = (float) world.currentSeason.toFloat();
+        inp[11] = (float) world.niche.sense(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
+        inp[12] = (float) Math.min(1, memory.age / 1500.0);
+        inp[13] = safeFloat(brain.getLastFE());
+        inp[14] = safeFloat(brain.getPredError());
+        inp[15] = safeFloat(brain.getUncertainty());
         return inp;
     }
 
     private double[] escapeDir(World world) {
-        double ex=0,ey=0;
-        for(double[] d:world.getDangerList()){double dx=x-d[0],dy=y-d[1],dist=Math.sqrt(dx*dx+dy*dy);if(dist<d[2]*2&&dist>0){ex+=dx/dist;ey+=dy/dist;}}
-        double len=Math.sqrt(ex*ex+ey*ey);
-        return len>0?new double[]{ex/len,ey/len}:new double[]{rng.nextGaussian(),rng.nextGaussian()};
+        double ex = 0, ey = 0;
+        for (double[] d : world.getDangerList()) {
+            double dx   = x - d[0], dy = y - d[1];
+            double dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < d[2] * 2 && dist > 0) { ex += dx / dist; ey += dy / dist; }
+        }
+        double len = Math.sqrt(ex*ex + ey*ey);
+        return len > 0 ? new double[]{ex/len, ey/len}
+                : new double[]{rng.nextGaussian(), rng.nextGaussian()};
     }
 
     @Override
     public String toString() {
         return String.format("T#%3d [%s|FE=%.2f|PE=%.2f] E=%.0f Val=%.2f Gedanke:'%s'",
-            id,stage.label,brain.getLastFE(),brain.getPredError(),
-            homeostasis.drives[0],homeostasis.valence,lastThought);
+                id, stage.label,
+                brain.getLastFE(), brain.getPredError(),
+                homeostasis.drives[0], homeostasis.valence, lastThought);
     }
 }

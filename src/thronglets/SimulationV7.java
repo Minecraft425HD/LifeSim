@@ -7,7 +7,6 @@ public class SimulationV7 implements Runnable {
 
     public static final int    WORLD_W  = 500, WORLD_H  = 500;
     public static final int    START_POP= 25, MIN_POP  = 6, MAX_POP = 100;
-    public static final int    FOOD     = 55, DANGER   = 7;
     public static final long   TICK_MS  = 28;
     public static final double GRP_R    = 38.0;
 
@@ -22,7 +21,8 @@ public class SimulationV7 implements Runnable {
 
     public SimulationV7(long seed, RendererV7 r) {
         rng      = new Random(seed);
-        world    = new WorldV6(WORLD_W, WORLD_H, FOOD, DANGER, rng);
+        SimConfig cfg = SimConfig.INSTANCE;
+        world    = new WorldV6(WORLD_W, WORLD_H, cfg.baseFoodCount, cfg.dangerCount, rng);
         neat     = new NEATEvolution(rng);
         renderer = r;
         pop      = new ArrayList<>();
@@ -39,11 +39,16 @@ public class SimulationV7 implements Runnable {
         System.out.println("  SNN (STDP) + FEP (Friston) + Nano-Transformer");
         System.out.println("═══════════════════════════════════════════════════\n");
 
-
         while (running) {
             long t0 = System.currentTimeMillis();
+
             // Spieler-platzierte Nahrung einfügen
-            if (renderer != null) { double[] fp; while ((fp=renderer.getFoodQueue().poll())!=null) world.addFood(fp[0],fp[1]); }
+            if (renderer != null) {
+                double[] fp;
+                while ((fp=renderer.getFoodQueue().poll())!=null)
+                    world.addFood(fp[0],fp[1]);
+            }
+
             world.tick();
             updateGroups();
 
@@ -67,11 +72,19 @@ public class SimulationV7 implements Runnable {
             }
 
             pop.addAll(newborns);
+
             // Todesereignisse für Renderer erfassen
-            if (renderer != null) for (ThrongletV7 t : pop) if (!t.alive) {
-                String cause = t.homeostasis.drives[0]<=0.1?"Hunger":t.homeostasis.drives[1]>=99.9?"Stress":t.homeostasis.drives[4]<=0.1?"Kälte":"Alter";
-                renderer.addDeath(t.x, t.y, world.getTick(), cause);
+            if (renderer != null) {
+                for (ThrongletV7 t : pop) if (!t.alive) {
+                    String cause =
+                            t.homeostasis.drives[0]<=0.1? "Hunger" :
+                                    t.homeostasis.drives[1]>=99.9? "Stress" :
+                                            t.homeostasis.drives[4]<=0.1? "Kälte" :
+                                                    "Alter";
+                    renderer.addDeath(t.x, t.y, world.getTick(), cause);
+                }
             }
+
             pop.removeIf(t->!t.alive);
             groups.values().forEach(Group::tick);
             for (ThrongletV7 t:pop) t.genome.fitness=t.fitness;
@@ -101,7 +114,9 @@ public class SimulationV7 implements Runnable {
 
     private void updateGroups() {
         groups.values().removeIf(g->g.size()<2);
-        for (ThrongletV7 t:pop) if(t.groupId>=0&&!groups.containsKey(t.groupId)) t.groupId=-1;
+        for (ThrongletV7 t:pop)
+            if(t.groupId>=0&&!groups.containsKey(t.groupId)) t.groupId=-1;
+
         for (ThrongletV7 t:pop) {
             if(!t.alive||t.stage==LifeStage.EGG||t.socialOut<=0) continue;
             for (ThrongletV7 o:pop) {
@@ -117,17 +132,22 @@ public class SimulationV7 implements Runnable {
                 }
             }
         }
-        Map<Integer,ThrongletV7> byId=new HashMap<>(); for(ThrongletV7 t:pop) byId.put(t.id,t);
+        Map<Integer,ThrongletV7> byId=new HashMap<>();
+        for(ThrongletV7 t:pop) byId.put(t.id,t);
         for(Group g:groups.values()){
             int alpha=g.memberIds.stream().filter(byId::containsKey)
-                .max(Comparator.comparingDouble(id->byId.get(id).fitness)).orElse(-1);
+                    .max(Comparator.comparingDouble(id->byId.get(id).fitness)).orElse(-1);
             g.alphaId=alpha;
         }
     }
 
     private ThrongletV7 nearestMate(ThrongletV7 self) {
         ThrongletV7 best=null; double bd=Double.MAX_VALUE;
-        for(ThrongletV7 o:pop){if(o.id==self.id||!o.alive||!o.stage.canReproduce())continue;double d=World.dist(self.x,self.y,o.x,o.y);if(d<bd){bd=d;best=o;}}
+        for(ThrongletV7 o:pop){
+            if(o.id==self.id||!o.alive||!o.stage.canReproduce())continue;
+            double d=World.dist(self.x,self.y,o.x,o.y);
+            if(d<bd){bd=d;best=o;}
+        }
         return best;
     }
 
@@ -138,8 +158,11 @@ public class SimulationV7 implements Runnable {
         double avgV=pop.stream().mapToDouble(t->t.homeostasis.valence).average().orElse(0);
         Map<String,Long> thoughts=new HashMap<>();
         for(ThrongletV7 t:pop) thoughts.merge(t.lastThought,1L,Long::sum);
-        String topThought=thoughts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("?");
-        System.out.printf("Tick%5d|Pop:%3d|Fit:%5.1f|FE:%.2f|PE:%.2f|Val:%.2f|Sp:%d|Gen:%d|Top:'%s'|%s%n",
-            world.getTick(),pop.size(),avgF,avgFE,avgPE,avgV,neat.speciesCount(),generation,topThought,world.currentSeason.label);
+        String topThought=thoughts.entrySet().stream().max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("?");
+        System.out.printf(
+                "Tick%5d|Pop:%3d|Fit:%5.1f|FE:%.2f|PE:%.2f|Val:%.2f|Sp:%d|Gen:%d|Top:'%s'|%s%n",
+                world.getTick(),pop.size(),avgF,avgFE,avgPE,avgV,
+                neat.speciesCount(),generation,topThought,world.currentSeason.label);
     }
 }
