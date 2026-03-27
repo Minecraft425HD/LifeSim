@@ -28,6 +28,8 @@ public class RendererV7 extends JPanel {
     private final ConcurrentHashMap<Integer,String> names   = new ConcurrentHashMap<>();
     private volatile Integer selectedId = null;
     private final CopyOnWriteArrayList<DeathAnim> deathAnims = new CopyOnWriteArrayList<>();
+    private volatile int extinctionCount = 0;
+    private volatile long extinctionFlashUntil = 0;
 
     static class DeathAnim {
         final double x,y; final int startTick; final String cause;
@@ -90,6 +92,7 @@ public class RendererV7 extends JPanel {
 
     public ConcurrentLinkedQueue<double[]> getFoodQueue(){return foodQueue;}
     public void addDeath(double x,double y,int tick,String cause){deathAnims.add(new DeathAnim(x,y,tick,cause));}
+    public void notifyExtinction(int count){extinctionCount=count;extinctionFlashUntil=System.currentTimeMillis()+6000;}
 
     public synchronized void update(List<ThrongletV7> pop, WorldV6 world,
                                      Map<Integer,Group> gmap, int g, int sp) {
@@ -186,6 +189,7 @@ public class RendererV7 extends JPanel {
         }
         drawHUD(g2);
         drawSelectedPanel(g2);
+        drawSurvivalWarning(g2);
     }
 
     private void drawPhero(Graphics2D g2,double sx,double sy){double[][][] p=ph;if(p==null)return;int cs=10;for(PheromoneType pt:PheromoneType.values()){Color base=new Color(pt.argbColor,true);for(int cx=0;cx<p[pt.id].length;cx++)for(int cy=0;cy<p[pt.id][cx].length;cy++){double s=p[pt.id][cx][cy];if(s<0.025)continue;int alpha = (int)(s * 110);if (alpha < 0) alpha = 0;if (alpha > 255) alpha = 255;g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), alpha));g2.fillRect((int)(cx*cs*sx),(int)(cy*cs*sy),(int)(cs*sx)+1,(int)(cs*sy)+1);}}}
@@ -248,6 +252,45 @@ public class RendererV7 extends JPanel {
         // Hinweis
         g2.setFont(new Font("SansSerif",Font.PLAIN,7)); g2.setColor(new Color(90,90,120));
         g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+110);
+    }
+
+    private void drawSurvivalWarning(Graphics2D g2){
+        long now=System.currentTimeMillis();
+        boolean extinct=now<extinctionFlashUntil;
+        boolean critical=popSize>0&&popSize<=3;
+        if(!extinct&&!critical) return;
+
+        if(extinct){
+            // Rotes Aufblitzen: "AUSGESTORBEN"
+            float phase=(float)((extinctionFlashUntil-now)/6000.0);
+            float alpha=Math.min(0.7f,phase*2);
+            g2.setColor(new Color(0.7f,0f,0f,alpha*0.4f));
+            g2.fillRect(0,0,WV,HT);
+            g2.setFont(new Font("Monospaced",Font.BOLD,22));
+            String msg="AUSGESTORBEN #"+extinctionCount;
+            FontMetrics fm=g2.getFontMetrics();
+            int tx=(WV-fm.stringWidth(msg))/2,ty=HT/2;
+            g2.setColor(new Color(0,0,0,180));
+            g2.fillRoundRect(tx-10,ty-24,fm.stringWidth(msg)+20,36,8,8);
+            g2.setColor(new Color(1f,0.2f,0.2f,alpha));
+            g2.drawString(msg,tx,ty);
+            g2.setFont(new Font("SansSerif",Font.PLAIN,12));
+            String sub="Neue Generation wächst – Fitness-Strafe aktiv";
+            int sw=g2.getFontMetrics().stringWidth(sub);
+            g2.setColor(new Color(1f,0.6f,0.6f,alpha*0.9f));
+            g2.drawString(sub,(WV-sw)/2,ty+22);
+        } else {
+            // Kritische Population: Pulsierender Rahmen
+            float pulse=0.5f+0.5f*(float)Math.sin(now*0.006);
+            g2.setColor(new Color(1f,0.3f,0f,pulse*0.5f));
+            g2.setStroke(new java.awt.BasicStroke(6f));
+            g2.drawRect(3,3,WV-6,HT-6);
+            g2.setStroke(new java.awt.BasicStroke(1f));
+            g2.setFont(new Font("Monospaced",Font.BOLD,11));
+            String warn="POP KRITISCH: "+popSize;
+            g2.setColor(new Color(1f,0.4f,0.1f,pulse));
+            g2.drawString(warn,8,HT-8);
+        }
     }
 
     private void hud(Graphics2D g,int x,int y,String k,String v){g.setColor(new Color(130,155,200));g.drawString(k+":",x,y);g.setColor(Color.WHITE);g.drawString(v,x+90,y);}

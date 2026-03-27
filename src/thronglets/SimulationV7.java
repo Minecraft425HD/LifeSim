@@ -18,6 +18,7 @@ public class SimulationV7 implements Runnable {
     private       int               generation = 0;
     private final RendererV7        renderer;
     private volatile boolean        running = true;
+    private int                     extinctionCount = 0;
 
     public SimulationV7(long seed, RendererV7 r) {
         rng      = new Random(seed);
@@ -62,7 +63,7 @@ public class SimulationV7 implements Runnable {
                 double gfy = g!=null?g.sharedFoodY:-1;
                 int    gsz = g!=null?g.size():0;
 
-                ThrongletV7 child = t.tick(world, sig, gfx, gfy, nearestAgent(t), gsz);
+                ThrongletV7 child = t.tick(world, sig, gfx, gfy, nearestAgent(t), gsz, pop.size());
 
                 if (t.signalOut==Signal.FOOD_NEAR&&g!=null) {
                     double[] fp=world.nearestFoodPos(t.x,t.y);
@@ -86,6 +87,17 @@ public class SimulationV7 implements Runnable {
             }
 
             pop.removeIf(t->!t.alive);
+
+            // Aussterbe-Erkennung: Strafe + Warnung
+            if (pop.isEmpty() && world.getTick() > 10) {
+                extinctionCount++;
+                System.out.printf("%n  ╔══════════════════════════════════════════╗%n");
+                System.out.printf("  ║  AUSSTERBEN #%d bei Tick %5d !          ║%n", extinctionCount, world.getTick());
+                System.out.printf("  ║  Die Art hat versagt. Fitness halbiert.  ║%n");
+                System.out.printf("  ╚══════════════════════════════════════════╝%n%n");
+                if (renderer != null) renderer.notifyExtinction(extinctionCount);
+            }
+
             groups.values().forEach(Group::tick);
             for (ThrongletV7 t:pop) t.genome.fitness=t.fitness;
 
@@ -97,12 +109,15 @@ public class SimulationV7 implements Runnable {
             if (pop.size()<MIN_POP) {
                 generation++;
                 List<NEATGenome> genomes=pop.stream().map(t->t.genome).collect(Collectors.toList());
+                // Aussterbe-Strafe: Fitness der überlebenden Genome stark reduzieren
+                if (pop.isEmpty()) genomes.forEach(g -> g.fitness *= 0.2);
                 while (genomes.size()<START_POP) genomes.add(new NEATGenome(rng));
                 List<NEATGenome> evolved=neat.evolve(genomes, START_POP);
                 pop.clear();
                 for (NEATGenome g:evolved)
                     pop.add(new ThrongletV7(rng.nextDouble()*WORLD_W, rng.nextDouble()*WORLD_H, rng));
-                System.out.printf("  ↳ Gen %d | Spezies: %d%n", generation, neat.speciesCount());
+                System.out.printf("  ↳ Gen %d | Spezies: %d | Aussterbungen: %d%n",
+                        generation, neat.speciesCount(), extinctionCount);
             }
 
             long el=System.currentTimeMillis()-t0;

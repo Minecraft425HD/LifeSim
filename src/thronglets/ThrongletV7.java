@@ -78,7 +78,7 @@ public class ThrongletV7 {
 
     public ThrongletV7 tick(WorldV6 world, Signal groupSig,
                             double gfx, double gfy,
-                            ThrongletV7 nearestMate, int groupSize) {
+                            ThrongletV7 nearestMate, int groupSize, int totalPop) {
         if (!alive) return null;
         if (reprodCooldown > 0) reprodCooldown--;
 
@@ -86,7 +86,7 @@ public class ThrongletV7 {
         if (memory.age >= LifeStage.ELDER.maxAge) { alive = false; return null; }
 
         // ① Inputs
-        float[] inp = buildInputs(world, groupSig, nearestMate);
+        float[] inp = buildInputs(world, groupSig, nearestMate, totalPop);
 
         // ② Dreischichtiges Gehirn
         float[] out = brain.forward(inp, homeostasis, groupSize);
@@ -103,10 +103,14 @@ public class ThrongletV7 {
                       && world.nearestDangerDist(x, y) < gene.sensorRange;
         boolean hungry = energy < 40;
         boolean cold   = warmth < 30;
+
+        // Überlebensinstinkt: niedrige Population senkt Anforderungen für Paarung
+        boolean critical = totalPop <= 4;
+        double energyForMating = critical ? 45.0 : 65.0;
         boolean mating = !hungry && !cold
                       && stage.canReproduce()
                       && memory.age >= (int) gene.reproductionAge
-                      && energy > 65 && homeostasis.valence > 0.1;
+                      && energy > energyForMating && homeostasis.valence > 0.1;
 
         double mx = 0, my = 0;
 
@@ -269,15 +273,17 @@ public class ThrongletV7 {
 
         if (homeostasis.isDead()) { alive = false; return null; }
 
-        // ⑪ Reproduktion – nur wenn wirklich glücklich und Abkühlzeit abgelaufen
+        // ⑪ Reproduktion – Wohlbefinden nötig; bei kritischer Pop. werden Schwellen gesenkt
+        double valenceNeeded = critical ? 0.1 : 0.5;
+        double energyNeeded  = critical ? 45.0 : 65.0;
         boolean canRepro = mating
-                && homeostasis.drives[DriveType.ENERGY.id] > 65
-                && homeostasis.valence > 0.5              // muss sich wohlfühlen
+                && homeostasis.drives[DriveType.ENERGY.id] > energyNeeded
+                && homeostasis.valence > valenceNeeded
                 && reprodCooldown <= 0
-                && nearestMate != null && nearestMate.stage.canReproduce(); // Partner muss fortpflanzungsfähig sein
+                && nearestMate != null && nearestMate.stage.canReproduce();
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
-            reprodCooldown = 400;                 // 400 Ticks (~11 Sek) Pause
+            reprodCooldown = critical ? 150 : 400;  // Kürzere Pause wenn Art bedroht
             fitness += 12;
             memory.logMate(world.getTick());
             brain.reinforce(3, 2.0f);
@@ -305,7 +311,7 @@ public class ThrongletV7 {
      * 24 Sensor-Inputs – jedes sensorische Objekt hat Distanz + Richtungsvektor (dx,dy → [0,1]).
      * Richtungskodierung: 0 = links/oben, 0.5 = kein X/Y-Anteil, 1 = rechts/unten.
      */
-    private float[] buildInputs(WorldV6 world, Signal groupSig, ThrongletV7 nearestAgent) {
+    private float[] buildInputs(WorldV6 world, Signal groupSig, ThrongletV7 nearestAgent, int totalPop) {
         float[] h   = homeostasis.toInputVector();
         float[] inp = new float[SpikingBrain.IN]; // 24
 
@@ -356,6 +362,9 @@ public class ThrongletV7 {
 
         // [23] Freie Energie (als Meta-Selbstsignal)
         inp[23] = safeFloat(brain.getLastFE());
+
+        // [24] Populationsdruck: 0 = volle Pop, 1 = Aussterben droht
+        inp[24] = (float) Math.max(0, 1.0 - (double) totalPop / SimulationV7.MAX_POP);
 
         return inp;
     }
