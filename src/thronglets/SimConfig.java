@@ -12,7 +12,7 @@ public class SimConfig {
     public volatile double warmthWinterLoss  = 0.15; // Wärmeverlust pro Tick im Winter
 
     // ── Welt ────────────────────────────────
-    public volatile int    baseFoodCount     = 55;   // Start-Food in SimulationV7
+    public volatile int    baseFoodCount     = 41;   // Start-Food in SimulationV7 (–25%)
     public volatile double foodRegenFactor   = 1.2;  // Multiplikator auf Food-Regeneration
     public volatile int    dangerCount       = 0;    // 0 = Wasser übernimmt Rand-Gefahren
     public volatile double dangerStrength    = 1.0;  // Multiplikator für Danger-Schaden

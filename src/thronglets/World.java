@@ -42,16 +42,19 @@ public class World {
         double rg=baseRg*SimConfig.INSTANCE.foodRegenFactor;
         for(double[] f:foodList){
             if(f[2]<=0){
-                // Aufgefressen: Respawn-Countdown läuft
-                if(f[4]<=0) f[4]=120; // 120 Ticks Respawn-Wartezeit
-                f[4]--;
-                if(f[4]<=0){
-                    // Neuer Spot nahe der Mitte
-                    double a=rng.nextDouble()*2*Math.PI;
-                    double r=rng.nextDouble()*150;
-                    f[0]=clampX(width/2+Math.cos(a)*r);
-                    f[1]=clampY(height/2+Math.sin(a)*r);
-                    f[2]=f[3]; // Vollständig aufgefüllt
+                // Aufgefressen: Respawn-Countdown (f[4]>0 = läuft, f[4]==0 = gerade erschöpft)
+                if(f[4]==0){
+                    f[4]=120; // Countdown starten
+                } else {
+                    f[4]--;
+                    if(f[4]==0){
+                        // Neuer Spot nahe der Mitte
+                        double a=rng.nextDouble()*2*Math.PI;
+                        double rad=rng.nextDouble()*150;
+                        f[0]=clampX(width/2+Math.cos(a)*rad);
+                        f[1]=clampY(height/2+Math.sin(a)*rad);
+                        f[2]=f[3]; // Vollständig aufgefüllt
+                    }
                 }
             } else if(f[2]<f[3]){
                 f[2]=Math.min(f[3],f[2]+rg);
@@ -64,7 +67,7 @@ public class World {
         for(double[] f:foodList){
             double d=dist(x,y,f[0],f[1]);
             if(d<r&&f[2]>0){
-                double e=Math.min(f[2],5.0*(1-d/r));
+                double e=Math.min(f[2],12.0*(1-d/r));
                 f[2]-=e;tot+=e;
             }
         }
