@@ -110,6 +110,12 @@ public class ThrongletV7 {
 
         double moved=Math.sqrt(mx*mx+my*my);
         if (memory.isStuck()&&!flee){mx+=rng.nextGaussian()*speed;my+=rng.nextGaussian()*speed;}
+        // Wandabstoßung: sanfte Kraft die Agenten von den Rändern wegdrängt
+        double wd=30.0;
+        if (x<wd)              mx+=(wd-x)/wd*speed*1.2;
+        if (x>world.width-wd)  mx-=(x-(world.width-wd))/wd*speed*1.2;
+        if (y<wd)              my+=(wd-y)/wd*speed*1.2;
+        if (y>world.height-wd) my-=(y-(world.height-wd))/wd*speed*1.2;
         if (stage.canMove()){x=world.clampX(x+mx);y=world.clampY(y+my);}
 
         // ⑤ Pheromone
