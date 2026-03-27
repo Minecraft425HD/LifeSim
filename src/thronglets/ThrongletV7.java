@@ -90,8 +90,12 @@ public class ThrongletV7 {
         if (flee) {
             double[] esc=escapeDir(world); mx=esc[0]*speed*2.5; my=esc[1]*speed*2.5;
         } else {
-            mx=(out[0]*2-1)*speed*(1+homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
-            my=(out[1]*2-1)*speed*(1+homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
+            // Genetische Basisrichtung [0,2π] + SNN-Modulation ±90°
+            double snnMod = (out[0] - 0.5) * Math.PI;
+            double angle  = gene.epiBias * 2 * Math.PI + snnMod;
+            double spd    = speed * (1 + homeostasis.drives[DriveType.CURIOSITY.id]/200.0);
+            mx = Math.cos(angle) * spd;
+            my = Math.sin(angle) * spd;
             // FEP-modulated: gehe zur Nahrung wenn Energie-Belief niedrig
             if (homeostasis.drives[DriveType.ENERGY.id]<40) {
                 double[] grad=world.niche.gradient(x,y,PheromoneType.FOOD_TRAIL,gene.sensorRange);

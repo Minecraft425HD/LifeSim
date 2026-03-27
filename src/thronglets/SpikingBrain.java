@@ -45,11 +45,9 @@ public class SpikingBrain {
         for (int i=0;i<IN;    i++) inputLayer[i]  = new LIFNeuron();
         for (int i=0;i<HIDDEN;i++) hiddenLayer[i] = new LIFNeuron();
         for (int i=0;i<OUT;   i++) outputLayer[i] = new LIFNeuron();
-        // Xavier-Initialisierung
-        float scaleH = (float)Math.sqrt(2.0/IN);
-        float scaleO = (float)Math.sqrt(2.0/HIDDEN);
-        for (int h=0;h<HIDDEN;h++) for (int i=0;i<IN;    i++) w1[h][i]=(float)(rng.nextGaussian()*scaleH);
-        for (int o=0;o<OUT;   o++) for (int h=0;h<HIDDEN;h++) w2[o][h]=(float)(rng.nextGaussian()*scaleO);
+        // Größere Initialisierung für mehr individuelle Variation zwischen Agenten
+        for (int h=0;h<HIDDEN;h++) for (int i=0;i<IN;    i++) w1[h][i]=(float)(rng.nextGaussian()*0.8f);
+        for (int o=0;o<OUT;   o++) for (int h=0;h<HIDDEN;h++) w2[o][h]=(float)(rng.nextGaussian()*0.5f);
         // Per-Agent zufällige Startrichtungen (verhindert initiales Gleichlaufen)
         for (int o=0;o<OUT;o++) outputRates[o]=0.25f+rng.nextFloat()*0.5f;
     }
