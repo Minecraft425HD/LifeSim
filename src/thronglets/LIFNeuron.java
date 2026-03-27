@@ -36,7 +36,7 @@ public class LIFNeuron {
             refracLeft--;
             V = V_RESET;
         } else {
-            V = V * DECAY + I;
+            V = V_REST + (V - V_REST) * DECAY + I;
             if (V >= V_THRESH) {
                 spiked     = true;
                 V          = V_RESET;

@@ -150,7 +150,7 @@ public class ThrongletV7 {
         fitness+=homeostasis.wellbeing()*0.12+0.05;
         // FEP-Bonus: niedriger Vorhersagefehler = Welt wird verstanden = Fitness-Bonus
         if (brain.getPredError()<0.15) fitness+=0.03;
-        memory.tick(new double[]{homeostasis.drives[DriveType.ENERGY.id]/100.0});
+        memory.tick(new double[]{homeostasis.drives[DriveType.ENERGY.id]/100.0, x/world.width, y/world.height});
 
         if (homeostasis.isDead()) { alive=false; return null; }
 
