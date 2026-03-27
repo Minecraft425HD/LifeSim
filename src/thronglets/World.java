@@ -14,9 +14,14 @@ public class World {
     public World(double w,double h,int food,int danger,Random rng){
         this.rng=rng;
         width=w;height=h;
-        for(int i=0;i<food;i++){
-            double mx=12+rng.nextDouble()*22;
-            foodList.add(new double[]{rng.nextDouble()*w,rng.nextDouble()*h,mx*0.8,mx});
+        // Nahrung nur in der Kartenmitte (Radius 150px vom Zentrum)
+        for (int i=0; i<food; i++) {
+            double angle  = rng.nextDouble() * 2 * Math.PI;
+            double radius = rng.nextDouble() * 150;
+            double fx = w/2 + Math.cos(angle) * radius;
+            double fy = h/2 + Math.sin(angle) * radius;
+            double mx = 12 + rng.nextDouble() * 22;
+            foodList.add(new double[]{clampX(fx), clampY(fy), mx*0.8, mx});
         }
         for(int i=0;i<danger;i++)
             dangerList.add(new double[]{rng.nextDouble()*w,rng.nextDouble()*h,18+rng.nextDouble()*22});

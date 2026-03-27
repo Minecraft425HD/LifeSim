@@ -15,7 +15,7 @@ import java.util.Random;
  */
 public class SpikingBrain {
 
-    public static final int IN     = 16;
+    public static final int IN     = 24;  // 7 Homöostase + 3 Nahrung + 3 Feuer + 3 Agent + 4 Wände + Gefahr + Jahreszeit + Alter + FE
     public static final int HIDDEN = 32;
     public static final int OUT    = 10;
 

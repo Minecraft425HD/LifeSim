@@ -62,7 +62,7 @@ public class SimulationV7 implements Runnable {
                 double gfy = g!=null?g.sharedFoodY:-1;
                 int    gsz = g!=null?g.size():0;
 
-                ThrongletV7 child = t.tick(world, sig, gfx, gfy, nearestMate(t), gsz);
+                ThrongletV7 child = t.tick(world, sig, gfx, gfy, nearestAgent(t), gsz);
 
                 if (t.signalOut==Signal.FOOD_NEAR&&g!=null) {
                     double[] fp=world.nearestFoodPos(t.x,t.y);
@@ -141,10 +141,11 @@ public class SimulationV7 implements Runnable {
         }
     }
 
-    private ThrongletV7 nearestMate(ThrongletV7 self) {
+    /** Nächster beliebiger lebender Thronglet (für Navigation + Reproduktion) */
+    private ThrongletV7 nearestAgent(ThrongletV7 self) {
         ThrongletV7 best=null; double bd=Double.MAX_VALUE;
         for(ThrongletV7 o:pop){
-            if(o.id==self.id||!o.alive||!o.stage.canReproduce())continue;
+            if(o.id==self.id||!o.alive) continue;
             double d=World.dist(self.x,self.y,o.x,o.y);
             if(d<bd){bd=d;best=o;}
         }

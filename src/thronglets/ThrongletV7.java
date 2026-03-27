@@ -86,7 +86,7 @@ public class ThrongletV7 {
         if (memory.age >= LifeStage.ELDER.maxAge) { alive = false; return null; }
 
         // ① Inputs
-        float[] inp = buildInputs(world, groupSig);
+        float[] inp = buildInputs(world, groupSig, nearestMate);
 
         // ② Dreischichtiges Gehirn
         float[] out = brain.forward(inp, homeostasis, groupSize);
@@ -272,8 +272,9 @@ public class ThrongletV7 {
         // ⑪ Reproduktion – nur wenn wirklich glücklich und Abkühlzeit abgelaufen
         boolean canRepro = mating
                 && homeostasis.drives[DriveType.ENERGY.id] > 65
-                && homeostasis.valence > 0.5      // muss sich wohlfühlen
-                && reprodCooldown <= 0;
+                && homeostasis.valence > 0.5              // muss sich wohlfühlen
+                && reprodCooldown <= 0
+                && nearestMate != null && nearestMate.stage.canReproduce(); // Partner muss fortpflanzungsfähig sein
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
             reprodCooldown = 400;                 // 400 Ticks (~11 Sek) Pause
@@ -300,20 +301,62 @@ public class ThrongletV7 {
         return (float) v;
     }
 
-    private float[] buildInputs(WorldV6 world, Signal groupSig) {
+    /**
+     * 24 Sensor-Inputs – jedes sensorische Objekt hat Distanz + Richtungsvektor (dx,dy → [0,1]).
+     * Richtungskodierung: 0 = links/oben, 0.5 = kein X/Y-Anteil, 1 = rechts/unten.
+     */
+    private float[] buildInputs(WorldV6 world, Signal groupSig, ThrongletV7 nearestAgent) {
         float[] h   = homeostasis.toInputVector();
-        float[] inp = new float[SpikingBrain.IN];
+        float[] inp = new float[SpikingBrain.IN]; // 24
 
+        // [0-6] Homöostase: Energie, Stress, Sozial, Neugier, Wärme, Valenz, Arousal
         System.arraycopy(h, 0, inp, 0, Math.min(h.length, 7));
-        inp[7]  = (float) Math.max(0, 1 - world.nearestFoodDist(x, y)   / gene.sensorRange);
-        inp[8]  = (float) Math.max(0, 1 - world.nearestDangerDist(x, y) / gene.sensorRange);
-        inp[9]  = groupSig != null ? (float) groupSig.toFloat() : 0f;
-        inp[10] = (float) world.currentSeason.toFloat();
-        inp[11] = (float) world.niche.sense(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
-        inp[12] = (float) Math.min(1, memory.age / 1500.0);
-        inp[13] = safeFloat(brain.getLastFE());
-        inp[14] = safeFloat(brain.getPredError());
-        inp[15] = (float) Math.max(0, 1 - world.nearestFireDist(x, y) / (gene.sensorRange * 3));
+
+        // [7-9] Nächste Nahrung: Nähe + Richtung
+        double[] fp = world.nearestFoodPos(x, y);
+        if (fp != null) {
+            double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+            inp[7] = (float) Math.max(0, 1 - d / gene.sensorRange);
+            inp[8] = (float) ((d > 0 ? dx/d : 0) * 0.5 + 0.5);   // [-1,1] → [0,1]
+            inp[9] = (float) ((d > 0 ? dy/d : 0) * 0.5 + 0.5);
+        }
+
+        // [10-12] Nächstes Lagerfeuer: Nähe + Richtung
+        double[] fireP = world.nearestFirePos(x, y);
+        if (fireP != null) {
+            double dx = fireP[0]-x, dy = fireP[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+            inp[10] = (float) Math.max(0, 1 - d / (gene.sensorRange * 3));
+            inp[11] = (float) ((d > 0 ? dx/d : 0) * 0.5 + 0.5);
+            inp[12] = (float) ((d > 0 ? dy/d : 0) * 0.5 + 0.5);
+        }
+
+        // [13-15] Nächster Thronglet: Nähe + Richtung
+        if (nearestAgent != null) {
+            double dx = nearestAgent.x-x, dy = nearestAgent.y-y, d = Math.sqrt(dx*dx+dy*dy);
+            inp[13] = (float) Math.max(0, 1 - d / (gene.sensorRange * 2));
+            inp[14] = (float) ((d > 0 ? dx/d : 0) * 0.5 + 0.5);
+            inp[15] = (float) ((d > 0 ? dy/d : 0) * 0.5 + 0.5);
+        }
+
+        // [16-19] Wand-Abstände: links, rechts, oben, unten (0=weit, 1=direkt an der Wand)
+        double ws = 70.0; // Sensorreichweite für Wände
+        inp[16] = (float) Math.max(0, 1 - x / ws);
+        inp[17] = (float) Math.max(0, 1 - (world.width  - x) / ws);
+        inp[18] = (float) Math.max(0, 1 - y / ws);
+        inp[19] = (float) Math.max(0, 1 - (world.height - y) / ws);
+
+        // [20] Gefahr-Nähe
+        inp[20] = (float) Math.max(0, 1 - world.nearestDangerDist(x, y) / gene.sensorRange);
+
+        // [21] Jahreszeit
+        inp[21] = (float) world.currentSeason.toFloat();
+
+        // [22] Alter (0-1)
+        inp[22] = (float) Math.min(1, memory.age / 1500.0);
+
+        // [23] Freie Energie (als Meta-Selbstsignal)
+        inp[23] = safeFloat(brain.getLastFE());
+
         return inp;
     }
 
