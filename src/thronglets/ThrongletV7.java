@@ -114,7 +114,8 @@ public class ThrongletV7 {
         boolean flee   = waterD > 0.25                              // Wasser → sofort fliehen
                       || (out[6] > gene.fearThreshold
                           && world.nearestDangerDist(x, y) < gene.sensorRange);
-        boolean hungry = energy < 40;
+        boolean hungry = energy < 55;   // früher reagieren – nicht erst im Notfall
+        boolean peckish = energy < 75 && !hungry; // sanfter Hunger: leichte Anziehung zu Nahrung
         boolean cold   = warmth < 30;
 
         // Überlebensinstinkt: niedrige Population senkt Anforderungen für Paarung
@@ -153,6 +154,22 @@ public class ThrongletV7 {
                 if (d > 0) { mx = dx/d * speed * 1.8; my = dy/d * speed * 1.8; }
             }
 
+        } else if (peckish) {
+            // Leicht hungrig: sanfte Anziehung zur nächsten Nahrung (überschreibt Erkundung nicht komplett)
+            double[] fp = world.nearestFoodPos(x, y);
+            if (fp != null) {
+                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+                if (d > 0) {
+                    double snnMod = (out[0] - 0.5) * Math.PI;
+                    double angle  = gene.epiBias * 2 * Math.PI + snnMod;
+                    double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
+                            (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
+                    // 60% Nahrungsrichtung, 40% Erkundung → bleibt in der Nähe
+                    mx = dx/d * speed * 0.9 + Math.cos(angle) * spd * 0.4;
+                    my = dy/d * speed * 0.9 + Math.sin(angle) * spd * 0.4;
+                }
+            }
+
         } else if (mating && nearestMate != null) {
             // Zum Partner navigieren
             double dx = nearestMate.x - x, dy = nearestMate.y - y;
@@ -182,7 +199,7 @@ public class ThrongletV7 {
         if (!flee && gfx >= 0 && out[8] > 0.5) {
             double dx = gfx - x, dy = gfy - y, d = Math.sqrt(dx*dx + dy*dy);
             if (d > 1) {
-                double gForce = (hungry || cold) ? gene.socialAffinity * 0.3 : gene.socialAffinity;
+                double gForce = (hungry || peckish || cold) ? gene.socialAffinity * 0.3 : gene.socialAffinity;
                 mx += dx/d * speed * gForce;
                 my += dy/d * speed * gForce;
             }

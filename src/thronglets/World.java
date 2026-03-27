@@ -21,14 +21,15 @@ public class World {
             double fx = w/2 + Math.cos(angle) * radius;
             double fy = h/2 + Math.sin(angle) * radius;
             double mx = 12 + rng.nextDouble() * 22;
-            foodList.add(new double[]{clampX(fx), clampY(fy), mx*0.8, mx});
+            // [x, y, current, max, respawnTimer (0 = aktiv)]
+            foodList.add(new double[]{clampX(fx), clampY(fy), mx*0.8, mx, 0});
         }
         // Keine zufälligen Gefahrenzonen – Wasser übernimmt diese Rolle (dangerCount = 0)
     }
 
     public void addFood(double x,double y){
         double max=14+rng.nextDouble()*18;
-        foodList.add(new double[]{clampX(x),clampY(y),max,max});
+        foodList.add(new double[]{clampX(x),clampY(y),max,max,0});
     }
 
     public void tick(){
@@ -37,10 +38,25 @@ public class World {
             seasonTick=0;
             currentSeason=Season.values()[(currentSeason.ordinal()+1)%4];
         }
-        double baseRg=0.06*(currentSeason==Season.SPRING?2.2:currentSeason==Season.WINTER?0.25:1.0);
+        double baseRg=0.12*(currentSeason==Season.SPRING?2.2:currentSeason==Season.WINTER?0.30:1.0);
         double rg=baseRg*SimConfig.INSTANCE.foodRegenFactor;
-        for(double[] f:foodList)
-            if(f[2]<f[3]) f[2]=Math.min(f[3],f[2]+rg);
+        for(double[] f:foodList){
+            if(f[2]<=0){
+                // Aufgefressen: Respawn-Countdown läuft
+                if(f[4]<=0) f[4]=120; // 120 Ticks Respawn-Wartezeit
+                f[4]--;
+                if(f[4]<=0){
+                    // Neuer Spot nahe der Mitte
+                    double a=rng.nextDouble()*2*Math.PI;
+                    double r=rng.nextDouble()*150;
+                    f[0]=clampX(width/2+Math.cos(a)*r);
+                    f[1]=clampY(height/2+Math.sin(a)*r);
+                    f[2]=f[3]; // Vollständig aufgefüllt
+                }
+            } else if(f[2]<f[3]){
+                f[2]=Math.min(f[3],f[2]+rg);
+            }
+        }
     }
 
     public double consumeFood(double x,double y,double r){
