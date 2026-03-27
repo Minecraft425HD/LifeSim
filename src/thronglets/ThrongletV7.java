@@ -136,16 +136,16 @@ public class ThrongletV7 {
             my += rng.nextGaussian() * speed;
         }
 
-        // ── Wandabstoßung (sanfte Kraft die Agenten von Rändern wegdrängt) ──
-        double wd = 30.0;
+        // ── Wandabstoßung: stark genug um jede genetische Richtung zu überwältigen ──
+        double wd = 45.0;
         if (x < wd)
-            mx +=  (wd - x) / wd * speed * 1.2;
+            mx +=  (wd - x) / wd * speed * 3.5;
         if (x > world.width - wd)
-            mx -= (x - (world.width - wd)) / wd * speed * 1.2;
+            mx -= (x - (world.width - wd)) / wd * speed * 3.5;
         if (y < wd)
-            my +=  (wd - y) / wd * speed * 1.2;
+            my +=  (wd - y) / wd * speed * 3.5;
         if (y > world.height - wd)
-            my -= (y - (world.height - wd)) / wd * speed * 1.2;
+            my -= (y - (world.height - wd)) / wd * speed * 3.5;
 
         // ── Positions-Update mit NaN-Guard ──────────────────────────────────
         if (stage.canMove()) {
