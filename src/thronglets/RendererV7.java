@@ -42,8 +42,10 @@ public class RendererV7 extends JPanel {
         boolean isAlpha;
         boolean[] hiddenSpikes,outputSpikes;
         Signal signal;
+        int reprodCooldown;
         AgentSnap(ThrongletV7 t, boolean alpha) {
             x=t.x;y=t.y;fitness=t.fitness;id=t.id;groupId=t.groupId;age=t.memory.age;
+            reprodCooldown=t.reprodCooldown;
             speciesId=t.genome.speciesId;stage=t.stage.label;isAlpha=alpha;signal=t.signalOut;
             energy=t.homeostasis.drives[0];valence=t.homeostasis.valence;arousal=t.homeostasis.arousal;
             homeoDrives=t.homeostasis.drives.clone();thought=t.lastThought;
@@ -196,7 +198,7 @@ public class RendererV7 extends JPanel {
         if(sel==null) return;
         double sx=WV/worldW,sy=HT/worldH;
         int px=(int)(sel.x*sx),py=(int)(sel.y*sy);
-        int pw=165,ph=102;
+        int pw=165,ph=115;
         int panelX=Math.min(WV-pw-4,px+14);
         int panelY=Math.max(4,Math.min(HT-ph-4,py-ph/2));
         // Verbindungslinie
@@ -233,9 +235,19 @@ public class RendererV7 extends JPanel {
             String th=sel.thought.length()>20?sel.thought.substring(0,20):sel.thought;
             g2.drawString("\u201e"+th+"\u201c",panelX+5,panelY+84);
         }
+        // Reproduktions-Status
+        g2.setFont(new Font("SansSerif",Font.PLAIN,9));
+        if(sel.reprodCooldown>0){
+            g2.setColor(new Color(180,120,120));
+            g2.drawString("Reprod. in "+sel.reprodCooldown+" T",panelX+5,panelY+97);
+        } else {
+            double val=sel.valence;
+            if(val>0.5){g2.setColor(new Color(120,255,120));g2.drawString("Bereit zur Paarung",panelX+5,panelY+97);}
+            else{g2.setColor(new Color(160,160,200));g2.drawString(String.format("Valenz %.2f/0.5",val),panelX+5,panelY+97);}
+        }
         // Hinweis
         g2.setFont(new Font("SansSerif",Font.PLAIN,7)); g2.setColor(new Color(90,90,120));
-        g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+97);
+        g2.drawString("Rechtsklick=Namen entfernen",panelX+5,panelY+110);
     }
 
     private void hud(Graphics2D g,int x,int y,String k,String v){g.setColor(new Color(130,155,200));g.drawString(k+":",x,y);g.setColor(Color.WHITE);g.drawString(v,x+90,y);}

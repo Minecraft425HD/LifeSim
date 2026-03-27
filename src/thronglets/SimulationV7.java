@@ -6,7 +6,7 @@ import java.util.stream.Collectors;
 public class SimulationV7 implements Runnable {
 
     public static final int    WORLD_W  = 500, WORLD_H  = 500;
-    public static final int    START_POP= 25, MIN_POP  = 6, MAX_POP = 100;
+    public static final int    START_POP= 2,  MIN_POP  = 2, MAX_POP = 100;
     public static final long   TICK_MS  = 28;
     public static final double GRP_R    = 38.0;
 

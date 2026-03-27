@@ -35,6 +35,8 @@ public class ThrongletV7 {
 
     /** Letzter innerer Monolog für Renderer */
     public String lastThought = "…";
+    /** Abkühlzeit bis zur nächsten Reproduktion (in Ticks) */
+    public int    reprodCooldown = 0;
 
     private final Random rng;
     private final long   brainSeed;
@@ -78,6 +80,7 @@ public class ThrongletV7 {
                             double gfx, double gfy,
                             ThrongletV7 nearestMate, int groupSize) {
         if (!alive) return null;
+        if (reprodCooldown > 0) reprodCooldown--;
 
         stage = LifeStage.forAge(memory.age);
         if (memory.age >= LifeStage.ELDER.maxAge) { alive = false; return null; }
@@ -266,12 +269,14 @@ public class ThrongletV7 {
 
         if (homeostasis.isDead()) { alive = false; return null; }
 
-        // ⑪ Reproduktion
+        // ⑪ Reproduktion – nur wenn wirklich glücklich und Abkühlzeit abgelaufen
         boolean canRepro = mating
                 && homeostasis.drives[DriveType.ENERGY.id] > 65
-                && out[3] > (1.1 - gene.reproductiveDrive * 0.5);
+                && homeostasis.valence > 0.5      // muss sich wohlfühlen
+                && reprodCooldown <= 0;
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
+            reprodCooldown = 400;                 // 400 Ticks (~11 Sek) Pause
             fitness += 12;
             memory.logMate(world.getTick());
             brain.reinforce(3, 2.0f);
