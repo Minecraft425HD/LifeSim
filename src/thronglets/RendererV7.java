@@ -31,6 +31,7 @@ public class RendererV7 extends JPanel {
     private volatile int extinctionCount = 0;
     private volatile long extinctionFlashUntil = 0;
     private volatile int nestCount = 0;
+    private volatile List<Double> genFitHistory = new ArrayList<>();
 
     static class DeathAnim {
         final double x,y; final int startTick; final String cause;
@@ -48,6 +49,7 @@ public class RendererV7 extends JPanel {
         int reprodCooldown;
         int reproductionCount;
         int exploredCount;
+        float[] brainOut;
         AgentSnap(ThrongletV7 t, boolean alpha) {
             x=t.x;y=t.y;fitness=t.fitness;id=t.id;groupId=t.groupId;age=t.memory.age;
             reprodCooldown=t.reprodCooldown;
@@ -56,6 +58,7 @@ public class RendererV7 extends JPanel {
             speciesId=t.genome.speciesId;stage=t.stage.label;isAlpha=alpha;signal=t.signalOut;
             energy=t.homeostasis.drives[0];valence=t.homeostasis.valence;arousal=t.homeostasis.arousal;
             homeoDrives=t.homeostasis.drives.clone();thought=t.lastThought;
+            brainOut=t.lastBrainOut.clone();
             freeEnergy=t.brain.getLastFE();predError=t.brain.getPredError();
             uncertainty=t.brain.getUncertainty();
             hiddenSpikes=t.brain.getHiddenSpikes().clone();
@@ -112,7 +115,8 @@ public class RendererV7 extends JPanel {
     public void setNestCount(int n){nestCount=n;}
 
     public synchronized void update(List<ThrongletV7> pop, WorldV6 world,
-                                     Map<Integer,Group> gmap, int g, int sp) {
+                                     Map<Integer,Group> gmap, int g, int sp, List<Double> gfh) {
+        genFitHistory = new ArrayList<>(gfh);
         tick=world.getTick();gen=g;popSize=pop.size();specCount=sp;
         season=world.currentSeason.label;worldW=world.width;worldH=world.height;
         avgFit=pop.stream().mapToDouble(t->t.fitness).average().orElse(0);
@@ -196,6 +200,15 @@ public class RendererV7 extends JPanel {
             if(aName!=null){g2.setFont(new Font("SansSerif",Font.BOLD,10));FontMetrics fmn=g2.getFontMetrics();int tnw=fmn.stringWidth(aName)+8;int nlx=px-tnw/2,nly=py-r-22;g2.setColor(new Color(255,215,0,210));g2.fillRoundRect(nlx,nly,tnw,13,4,4);g2.setColor(new Color(0,0,0,220));g2.drawString(aName,nlx+4,nly+10);}
             // ── Selektionsring ──
             if(Integer.valueOf(a.id).equals(selectedId)){g2.setColor(new Color(255,255,255,200));g2.setStroke(new BasicStroke(2.5f));g2.drawOval(px-r-5,py-r-5,(r+5)*2,(r+5)*2);g2.setStroke(new BasicStroke(1f));}
+            // ── Brain-Intent-Icon: zeigt dominante Absicht ──
+            if(a.brainOut!=null&&a.brainOut.length>=10){
+                // out[2]=Nahrung(grün), out[3]=Feuer(orange), out[4]=Fliehen(rot), out[5]=Sozial(pink), out[9]=Fortpflanzung(magenta)
+                int[] idx={2,3,4,5,9};
+                Color[] ic={new Color(60,230,60),new Color(255,140,0),new Color(230,40,40),new Color(255,100,200),new Color(200,0,255)};
+                int best=-1; float bv=0.55f;
+                for(int i=0;i<idx.length;i++) if(a.brainOut[idx[i]]>bv){bv=a.brainOut[idx[i]];best=i;}
+                if(best>=0){g2.setColor(ic[best]);g2.fillOval(px+r-2,py-r-2,5,5);}
+            }
         }
         // ── Todesanimationen ──
         for(DeathAnim da:deathAnims){
@@ -215,6 +228,22 @@ public class RendererV7 extends JPanel {
 
     private void drawToggles(Graphics2D g2){
         SimConfig cfg=SimConfig.INSTANCE;
+        // ── Generations-Fitness-Verlauf ──
+        List<Double> gfh=genFitHistory;
+        if(gfh.size()>1){
+            int ox2=WV+8,gy=HT-75,gw=HUD_W-16,gh=35;
+            g2.setColor(new Color(20,30,50));g2.fillRect(ox2,gy,gw,gh);
+            g2.setColor(new Color(160,160,180));g2.setFont(new Font("Monospaced",Font.PLAIN,8));
+            g2.drawString("Beste Fitness/Generation ("+gfh.size()+")",ox2,gy-2);
+            double maxF=gfh.stream().mapToDouble(d->d).max().orElse(1);if(maxF<1)maxF=1;
+            g2.setColor(new Color(255,200,50));g2.setStroke(new BasicStroke(1.3f));
+            for(int i=1;i<gfh.size();i++){
+                int x1=ox2+(i-1)*gw/gfh.size(),y1=gy+gh-(int)(gfh.get(i-1)/maxF*gh);
+                int x2=ox2+i*gw/gfh.size(),     y2=gy+gh-(int)(gfh.get(i)/maxF*gh);
+                g2.drawLine(x1,y1,x2,y2);
+            }
+            g2.setStroke(new BasicStroke(1f));
+        }
         int ox=WV+8, y=HT-30;
         g2.setFont(new Font("Monospaced",Font.BOLD,11));
         String[][] toggles={{"[F] Nahrung",cfg.foodEnabled?"1":"0"},
@@ -232,7 +261,7 @@ public class RendererV7 extends JPanel {
 
     private void drawPhero(Graphics2D g2,double sx,double sy){double[][][] p=ph;if(p==null)return;int cs=10;for(PheromoneType pt:PheromoneType.values()){Color base=new Color(pt.argbColor,true);for(int cx=0;cx<p[pt.id].length;cx++)for(int cy=0;cy<p[pt.id][cx].length;cy++){double s=p[pt.id][cx][cy];if(s<0.025)continue;int alpha = (int)(s * 110);if (alpha < 0) alpha = 0;if (alpha > 255) alpha = 255;g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), alpha));g2.fillRect((int)(cx*cs*sx),(int)(cy*cs*sy),(int)(cs*sx)+1,(int)(cs*sy)+1);}}}
 
-    private void drawHUD(Graphics2D g2){int ox=WV+8;g2.setColor(new Color(9,11,22));g2.fillRect(WV,0,HUD_W,HT);g2.setColor(new Color(120,200,255));g2.setFont(new Font("Monospaced",Font.BOLD,15));g2.drawString("THRONGLETS  V7",ox,26);g2.setColor(new Color(255,150,50));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("SNN + FEP (Friston) + NanoTransformer",ox,40);int y=60;g2.setFont(new Font("Monospaced",Font.PLAIN,12));hud(g2,ox,y,"Tick",""+tick);hud(g2,ox,y+18,"Gen",""+gen);hud(g2,ox,y+36,"Pop",""+popSize);hud(g2,ox,y+54,"Spezies",""+specCount);hud(g2,ox,y+72,"Jahresz",season);hud(g2,ox,y+90,"Ø Fit",String.format("%.1f",avgFit));hud(g2,ox,y+108,"Ø FE",String.format("%.3f",avgFE));hud(g2,ox,y+126,"Ø PredE",String.format("%.3f",avgPE));hud(g2,ox,y+144,"Ø Valenz",String.format("%.2f",avgVal));y=225;g2.setColor(new Color(200,220,150));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Innerer Monolog ──",ox,y);y+=13;g2.setFont(new Font("Monospaced",Font.PLAIN,10));for(String t:thoughtLog){g2.setColor(new Color(180,220,180));String line=t.length()>28?t.substring(0,28):t;g2.drawString(line,ox,y);y+=13;}y+=8;g2.setColor(new Color(60,60,100));g2.fillRect(ox,y,HUD_W-16,60);g2.setFont(new Font("Monospaced",Font.PLAIN,9));g2.setColor(new Color(180,180,180));g2.drawString("Ø Freie Energie (lila) | Ø Valenz (grün)",ox,y-3);if(feHist.size()>1){double[] arr=feHist.stream().mapToDouble(d->d).toArray();int gw=HUD_W-16;double maxV=java.util.Arrays.stream(arr).max().orElse(1);if(maxV<0.001)maxV=0.001;g2.setColor(new Color(180,80,255));g2.setStroke(new BasicStroke(1.3f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+60-(int)(arr[i-1]/maxV*58);int x2=ox+i*gw/arr.length,y2=y+60-(int)(arr[i]/maxV*58);g2.drawLine(x1,y1,x2,y2);}}if(valHist.size()>1){double[] arr=valHist.stream().mapToDouble(d->d).toArray();int gw=HUD_W-16;g2.setColor(new Color(80,220,100));g2.setStroke(new BasicStroke(1.2f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+30-(int)(arr[i-1]*28);int x2=ox+i*gw/arr.length,y2=y+30-(int)(arr[i]*28);g2.drawLine(x1,y1,x2,y2);}}y+=74;g2.setColor(new Color(40,50,80));g2.fillRect(ox,y,HUD_W-16,45);g2.setColor(new Color(160,160,160));g2.setFont(new Font("Monospaced",Font.PLAIN,9));g2.drawString("Population (300 Ticks)",ox,y-3);if(popHist.size()>1){int[] arr=popHist.stream().mapToInt(i->i).toArray();int gw=HUD_W-16;int maxP=java.util.Arrays.stream(arr).max().orElse(1);g2.setColor(new Color(100,200,255));g2.setStroke(new BasicStroke(1.3f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+45-(int)(arr[i-1]/(double)maxP*43);int x2=ox+i*gw/arr.length,y2=y+45-(int)(arr[i]/(double)maxP*43);g2.drawLine(x1,y1,x2,y2);}}y+=58;g2.setColor(new Color(180,180,220));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Gehirnschichten ──",ox,y);y+=13;String[][] layers={{"■","SNN Spike-Aura","255,255,120"},{"■","FEP-Unsicherheit","180,100,255"},{"■","Emotions-Valenz","50,220,50"},{"■","Homeostase-Ring","200,120,50"}};for(String[] l:layers){String[] rgb=l[2].split(",");g2.setColor(new Color(Integer.parseInt(rgb[0]),Integer.parseInt(rgb[1]),Integer.parseInt(rgb[2])));g2.setFont(new Font("Monospaced",Font.PLAIN,10));g2.drawString(l[0]+" "+l[1],ox,y);y+=13;}y+=5;g2.setColor(new Color(180,180,220));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Pheromone ──",ox,y);y+=13;for(PheromoneType pt:PheromoneType.values()){g2.setColor(new Color(pt.argbColor,true));g2.fillRect(ox,y-9,9,9);g2.setColor(new Color(190,190,200));g2.setFont(new Font("Monospaced",Font.PLAIN,10));g2.drawString(pt.label,ox+12,y);y+=13;}}
+    private void drawHUD(Graphics2D g2){int ox=WV+8;g2.setColor(new Color(9,11,22));g2.fillRect(WV,0,HUD_W,HT);g2.setColor(new Color(120,200,255));g2.setFont(new Font("Monospaced",Font.BOLD,15));g2.drawString("THRONGLETS  V8",ox,26);g2.setColor(new Color(255,150,50));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("SNN + FEP (Friston) + NanoTransformer",ox,40);int y=60;g2.setFont(new Font("Monospaced",Font.PLAIN,12));hud(g2,ox,y,"Tick",""+tick);hud(g2,ox,y+18,"Gen",""+gen);hud(g2,ox,y+36,"Pop",""+popSize);hud(g2,ox,y+54,"Spezies",""+specCount);hud(g2,ox,y+72,"Jahresz",season);hud(g2,ox,y+90,"Ø Fit",String.format("%.1f",avgFit));hud(g2,ox,y+108,"Ø FE",String.format("%.3f",avgFE));hud(g2,ox,y+126,"Ø PredE",String.format("%.3f",avgPE));hud(g2,ox,y+144,"Ø Valenz",String.format("%.2f",avgVal));y=225;g2.setColor(new Color(200,220,150));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Innerer Monolog ──",ox,y);y+=13;g2.setFont(new Font("Monospaced",Font.PLAIN,10));for(String t:thoughtLog){g2.setColor(new Color(180,220,180));String line=t.length()>28?t.substring(0,28):t;g2.drawString(line,ox,y);y+=13;}y+=8;g2.setColor(new Color(60,60,100));g2.fillRect(ox,y,HUD_W-16,60);g2.setFont(new Font("Monospaced",Font.PLAIN,9));g2.setColor(new Color(180,180,180));g2.drawString("Ø Freie Energie (lila) | Ø Valenz (grün)",ox,y-3);if(feHist.size()>1){double[] arr=feHist.stream().mapToDouble(d->d).toArray();int gw=HUD_W-16;double maxV=java.util.Arrays.stream(arr).max().orElse(1);if(maxV<0.001)maxV=0.001;g2.setColor(new Color(180,80,255));g2.setStroke(new BasicStroke(1.3f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+60-(int)(arr[i-1]/maxV*58);int x2=ox+i*gw/arr.length,y2=y+60-(int)(arr[i]/maxV*58);g2.drawLine(x1,y1,x2,y2);}}if(valHist.size()>1){double[] arr=valHist.stream().mapToDouble(d->d).toArray();int gw=HUD_W-16;g2.setColor(new Color(80,220,100));g2.setStroke(new BasicStroke(1.2f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+30-(int)(arr[i-1]*28);int x2=ox+i*gw/arr.length,y2=y+30-(int)(arr[i]*28);g2.drawLine(x1,y1,x2,y2);}}y+=74;g2.setColor(new Color(40,50,80));g2.fillRect(ox,y,HUD_W-16,45);g2.setColor(new Color(160,160,160));g2.setFont(new Font("Monospaced",Font.PLAIN,9));g2.drawString("Population (300 Ticks)",ox,y-3);if(popHist.size()>1){int[] arr=popHist.stream().mapToInt(i->i).toArray();int gw=HUD_W-16;int maxP=java.util.Arrays.stream(arr).max().orElse(1);g2.setColor(new Color(100,200,255));g2.setStroke(new BasicStroke(1.3f));for(int i=1;i<arr.length;i++){int x1=ox+(i-1)*gw/arr.length,y1=y+45-(int)(arr[i-1]/(double)maxP*43);int x2=ox+i*gw/arr.length,y2=y+45-(int)(arr[i]/(double)maxP*43);g2.drawLine(x1,y1,x2,y2);}}y+=58;g2.setColor(new Color(180,180,220));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Gehirnschichten ──",ox,y);y+=13;String[][] layers={{"■","SNN Spike-Aura","255,255,120"},{"■","FEP-Unsicherheit","180,100,255"},{"■","Emotions-Valenz","50,220,50"},{"■","Homeostase-Ring","200,120,50"}};for(String[] l:layers){String[] rgb=l[2].split(",");g2.setColor(new Color(Integer.parseInt(rgb[0]),Integer.parseInt(rgb[1]),Integer.parseInt(rgb[2])));g2.setFont(new Font("Monospaced",Font.PLAIN,10));g2.drawString(l[0]+" "+l[1],ox,y);y+=13;}y+=5;g2.setColor(new Color(180,180,220));g2.setFont(new Font("Monospaced",Font.BOLD,10));g2.drawString("── Pheromone ──",ox,y);y+=13;for(PheromoneType pt:PheromoneType.values()){g2.setColor(new Color(pt.argbColor,true));g2.fillRect(ox,y-9,9,9);g2.setColor(new Color(190,190,200));g2.setFont(new Font("Monospaced",Font.PLAIN,10));g2.drawString(pt.label,ox+12,y);y+=13;}}
 
     private void drawSelectedPanel(Graphics2D g2){
         if(selectedId==null) return;

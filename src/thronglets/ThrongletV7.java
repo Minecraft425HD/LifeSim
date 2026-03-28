@@ -34,9 +34,11 @@ public class ThrongletV7 {
     public final NEATGenome       genome;
 
     /** Letzter innerer Monolog für Renderer */
-    public String lastThought = "…";
+    public String  lastThought  = "…";
+    /** Letzter Gehirn-Output (für Renderer / Intent-Visualisierung) */
+    public float[] lastBrainOut = new float[SpikingBrain.OUT];
     /** Abkühlzeit bis zur nächsten Reproduktion (in Ticks) */
-    public int    reprodCooldown = 0;
+    public int     reprodCooldown = 0;
     /** Lebens-Meilensteine */
     public int    reproductionCount = 0;
     public int    exploredCount     = 0;
@@ -113,8 +115,9 @@ public class ThrongletV7 {
         // ② Dreischichtiges Gehirn
         float[] out = brain.forward(inp, homeostasis, groupSize);
 
-        // ③ Innerer Monolog
-        lastThought = brain.getLastThought();
+        // ③ Innerer Monolog + Brain-Output speichern
+        lastThought  = brain.getLastThought();
+        lastBrainOut = out.clone();
 
         // ④ FREIER WILLE – Gehirn steuert alle Entscheidungen
         //
@@ -265,6 +268,10 @@ public class ThrongletV7 {
         // ⑩ Fitness
         fitness += homeostasis.wellbeing() * 0.12 + 0.05;
         if (brain.getPredError() < 0.15) fitness += 0.03;
+        // Überlebensdauer belohnen: logarithmisch (Langlebigkeit zählt mehr als bloßes Existieren)
+        if (memory.age % 50 == 0) fitness += Math.log1p(memory.age / 100.0) * 0.5;
+        // Nahrung gefunden wenn Energie kritisch → Überlebensbonus
+        if (atFood && homeostasis.drives[DriveType.ENERGY.id] < 20) fitness += 3.0;
 
         memory.tick(new double[]{
                 homeostasis.drives[DriveType.ENERGY.id] / 100.0,
@@ -286,9 +293,9 @@ public class ThrongletV7 {
             reprodCooldown = 400;
             reproductionCount++;
             checkReproductionMilestones();
-            fitness += 12;
+            fitness += 20 + reproductionCount * 2; // Fortpflanzungskette wächst
             memory.logMate(world.getTick());
-            brain.reinforce(3, 2.0f);
+            brain.reinforce(9, 3.0f); // out[9]=Fortpflanzung war erfolgreich
             ThrongletV7 child = new ThrongletV7(
                     x + rng.nextGaussian() * 8,
                     y + rng.nextGaussian() * 8,
@@ -405,6 +412,14 @@ public class ThrongletV7 {
 
         // [25] Vitalität (normiert)
         inp[25] = (float)(homeostasis.drives[DriveType.VITALITY.id] / 100.0);
+
+        // [26-28] Kommunikation: Signal vom nächsten Agenten empfangen
+        if (nearestAgent != null && nearestAgent.signalOut != Signal.NONE) {
+            inp[26] = 1.0f; // Signal vorhanden
+            inp[27] = nearestAgent.signalOut.toFloat(); // Signaltyp
+            double sdx = nearestAgent.x-x, sdy = nearestAgent.y-y, sd = Math.sqrt(sdx*sdx+sdy*sdy);
+            inp[28] = sd > 0 ? (float)(Math.atan2(sdy/sd, sdx/sd) / (2*Math.PI) + 0.5) : 0.5f; // Richtung
+        } // else: 0.0 default = kein Signal
 
         return inp;
     }

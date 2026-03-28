@@ -19,6 +19,7 @@ public class SimulationV7 implements Runnable {
     private final RendererV7        renderer;
     private volatile boolean        running = true;
     private int                     extinctionCount = 0;
+    private final List<Double>      genFitnessHistory = new ArrayList<>();
 
     public SimulationV7(long seed, RendererV7 r) {
         rng      = new Random(seed);
@@ -126,11 +127,14 @@ public class SimulationV7 implements Runnable {
             }
 
             if (world.getTick()%3==0&&renderer!=null)
-                renderer.update(new ArrayList<>(pop), world, groups, generation, neat.speciesCount());
+                renderer.update(new ArrayList<>(pop), world, groups, generation, neat.speciesCount(), genFitnessHistory);
 
             if (world.getTick()%200==0) logStats();
 
             if (pop.size()<MIN_POP) {
+                // Beste Fitness dieser Generation festhalten
+                double bestFit = pop.stream().mapToDouble(t->t.fitness).max().orElse(0);
+                genFitnessHistory.add(bestFit);
                 generation++;
                 List<NEATGenome> genomes=pop.stream().map(t->t.genome).collect(Collectors.toList());
                 // Aussterbe-Strafe: Fitness der überlebenden Genome stark reduzieren
