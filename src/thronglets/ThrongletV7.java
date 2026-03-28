@@ -116,116 +116,50 @@ public class ThrongletV7 {
         // ③ Innerer Monolog
         lastThought = brain.getLastThought();
 
-        // ④ Priorisiertes Verhalten (Wasser > Hunger > Kälte > Paarung > Erkunden)
+        // ④ FREIER WILLE – Gehirn steuert alle Entscheidungen
+        //
+        // out[0] = Basisrichtung (0→2π)
+        // out[1] = Geschwindigkeits-Modulator (30%–100%)
+        // out[2] = Gewicht Nahrungsanziehung
+        // out[3] = Gewicht Feuer/Wärme-Anziehung
+        // out[4] = Gewicht Flucht (Wasser/Gefahr)
+        // out[5] = Gewicht Sozial/Partnerwahl
+        // out[6] = Signal senden
+        // out[7] = Signal-Typ
+        // out[8] = Gruppen-Kohäsion
+        // out[9] = Fortpflanzungsversuch
+
         double waterD   = world.waterDepthAt(x, y);
         double vitality = homeostasis.drives[DriveType.VITALITY.id];
-        // Vitalität: hohe Vitalität = schneller und widerstandsfähiger
-        double vitalMod = 0.9 + vitality / 500.0; // 0→0.9×, 50→1.0×, 100→1.1×
+        double vitalMod = 0.9 + vitality / 500.0;
         double speed    = gene.moveSpeed * SimConfig.INSTANCE.speedFactor * stage.speedMod
                         * (1.0 - waterD * 0.65) * vitalMod;
-        double energy = homeostasis.drives[DriveType.ENERGY.id];
-        double warmth = homeostasis.drives[DriveType.WARMTH.id];
 
-        boolean flee   = waterD > 0.25                              // Wasser → sofort fliehen
-                      || (out[6] > gene.fearThreshold
-                          && world.nearestDangerDist(x, y) < gene.sensorRange);
-        boolean hungry = energy < 55;   // früher reagieren – nicht erst im Notfall
-        boolean peckish = energy < 75 && !hungry; // sanfter Hunger: leichte Anziehung zu Nahrung
-        boolean cold   = warmth < 30;
+        double[] foodDir  = dirTo(world.nearestFoodPos(x, y));
+        double[] fireDir  = dirTo(world.nearestFirePos(x, y));
+        double[] agentDir = nearestMate != null ? dirTo(new double[]{nearestMate.x, nearestMate.y}) : null;
+        double[] escDir   = escapeDir(world);
 
-        // Überlebensinstinkt: niedrige Population senkt Anforderungen für Paarung
-        boolean critical = totalPop <= 4;
-        double energyForMating = critical ? 45.0 : 65.0;
-        boolean mating = !hungry && !cold
-                      && stage.canReproduce()
-                      && memory.age >= (int) gene.reproductionAge
-                      && energy > energyForMating && homeostasis.valence > 0.1;
+        double angle  = out[0] * 2 * Math.PI;
+        double spdMod = 0.3 + out[1] * 0.7;
+        double mx = Math.cos(angle) * speed * spdMod;
+        double my = Math.sin(angle) * speed * spdMod;
 
-        double mx = 0, my = 0;
+        if (foodDir  != null) { mx += foodDir[0]  * speed * out[2]; my += foodDir[1]  * speed * out[2]; }
+        if (fireDir  != null) { mx += fireDir[0]  * speed * out[3]; my += fireDir[1]  * speed * out[3]; }
+        mx += escDir[0] * speed * out[4];
+        my += escDir[1] * speed * out[4];
+        if (agentDir != null) { mx += agentDir[0] * speed * out[5]; my += agentDir[1] * speed * out[5]; }
 
-        if (flee) {
-            // Gefahr hat höchste Priorität
-            double[] esc = escapeDir(world);
-            mx = esc[0] * speed * 2.5;
-            my = esc[1] * speed * 2.5;
-
-        } else if (hungry) {
-            // Direkt zur nächsten Nahrungsquelle navigieren
-            double[] fp = world.nearestFoodPos(x, y);
-            if (fp != null) {
-                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
-                if (d > 0) { mx = dx/d * speed * 2.2; my = dy/d * speed * 2.2; }
-            } else {
-                // Kein Futter sichtbar → Pheromonspur folgen
-                double[] grad = world.niche.gradient(x, y, PheromoneType.FOOD_TRAIL, gene.sensorRange);
-                mx = grad[0] * speed * 1.5; my = grad[1] * speed * 1.5;
-            }
-
-        } else if (cold) {
-            // Direkt zum nächsten Lagerfeuer navigieren
-            double[] fp = world.nearestFirePos(x, y);
-            if (fp != null) {
-                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
-                if (d > 0) { mx = dx/d * speed * 1.8; my = dy/d * speed * 1.8; }
-            }
-
-        } else if (peckish) {
-            // Leicht hungrig: sanfte Anziehung zur nächsten Nahrung (überschreibt Erkundung nicht komplett)
-            double[] fp = world.nearestFoodPos(x, y);
-            if (fp != null) {
-                double dx = fp[0]-x, dy = fp[1]-y, d = Math.sqrt(dx*dx+dy*dy);
-                if (d > 0) {
-                    double snnMod = (out[0] - 0.5) * Math.PI;
-                    double angle  = gene.epiBias * 2 * Math.PI + snnMod;
-                    double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
-                            (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
-                    // 60% Nahrungsrichtung, 40% Erkundung → bleibt in der Nähe
-                    mx = dx/d * speed * 0.9 + Math.cos(angle) * spd * 0.4;
-                    my = dy/d * speed * 0.9 + Math.sin(angle) * spd * 0.4;
-                }
-            }
-
-        } else if (mating && nearestMate != null) {
-            // Zum Partner navigieren
-            double dx = nearestMate.x - x, dy = nearestMate.y - y;
-            double d  = Math.sqrt(dx*dx + dy*dy);
-            if (d > 8 && d < gene.sensorRange * 2.5) {
-                mx = dx/d * speed * gene.reproductiveDrive * 1.5;
-                my = dy/d * speed * gene.reproductiveDrive * 1.5;
-            } else {
-                double snnMod = (out[0] - 0.5) * Math.PI;
-                double angle  = gene.epiBias * 2 * Math.PI + snnMod;
-                double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
-                        (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
-                mx = Math.cos(angle) * spd; my = Math.sin(angle) * spd;
-            }
-
-        } else {
-            // Normales Erkunden: genetische Basisrichtung + SNN-Modulation ±90°
-            double snnMod = (out[0] - 0.5) * Math.PI;
-            double angle  = gene.epiBias * 2 * Math.PI + snnMod;
-            double spd    = speed * (0.5 + SimConfig.INSTANCE.curiosityFactor *
-                    (homeostasis.drives[DriveType.CURIOSITY.id] / 400.0));
-            mx = Math.cos(angle) * spd;
-            my = Math.sin(angle) * spd;
-        }
-
-        // Gruppen-Navigation (immer außer beim Flüchten, aber schwächer im Notstand)
-        if (!flee && gfx >= 0 && out[8] > 0.5) {
+        // Gruppen-Navigation
+        if (gfx >= 0 && out[8] > 0.5) {
             double dx = gfx - x, dy = gfy - y, d = Math.sqrt(dx*dx + dy*dy);
-            if (d > 1) {
-                double gForce = (hungry || peckish || cold) ? gene.socialAffinity * 0.3 : gene.socialAffinity;
-                mx += dx/d * speed * gForce;
-                my += dy/d * speed * gForce;
-            }
+            if (d > 1) { mx += dx/d * speed * gene.socialAffinity; my += dy/d * speed * gene.socialAffinity; }
         }
 
-        // Anti-Stuck: zufällige Störung wenn festgehangen
+        // Anti-Stuck
         double moved = Math.sqrt(mx*mx + my*my);
-        if (memory.isStuck() && !flee) {
-            mx += rng.nextGaussian() * speed;
-            my += rng.nextGaussian() * speed;
-        }
+        if (memory.isStuck()) { mx += rng.nextGaussian() * speed; my += rng.nextGaussian() * speed; }
 
         // ── Wandabstoßung: stark genug um jede genetische Richtung zu überwältigen ──
         double wd = 45.0;
@@ -256,13 +190,13 @@ public class ThrongletV7 {
             world.niche.deposit(x, y, PheromoneType.TRAIL, 0.025);
             if (homeostasis.drives[DriveType.SOCIAL.id] > 60)
                 world.niche.deposit(x, y, PheromoneType.SOCIAL, 0.04);
-            if (mating && nearestMate != null)
+            if (out[9] > 0.7)
                 world.niche.deposit(x, y, PheromoneType.SOCIAL, 0.08); // Paarungslocksignal
         }
 
         // ⑥ Nahrung – immer essen wenn nicht satt und Nahrung in Reichweite (kein SNN-Gate)
         boolean atFood = false;
-        if (stage != LifeStage.EGG && energy < 90) {
+        if (stage != LifeStage.EGG && homeostasis.drives[DriveType.ENERGY.id] < 90) {
             double eaten = world.consumeFood(x, y, gene.sensorRange * 0.4);
             if (eaten > 0) {
                 homeostasis.drives[DriveType.ENERGY.id] =
@@ -316,15 +250,15 @@ public class ThrongletV7 {
         if (fireWarmth > 0) {
             homeostasis.drives[DriveType.WARMTH.id] =
                     Math.min(100, homeostasis.drives[DriveType.WARMTH.id] + fireWarmth);
-            brain.reinforce(5, (float)(fireWarmth * 0.5)); // Wärme positiv belohnen
+            brain.reinforce(3, (float)(fireWarmth * 0.5)); // out[3]=Feueranziehung war erfolgreich
         }
 
         double dmg = world.dangerDamage(x, y);
         if (dmg > 0) {
             double eff = dmg * (groupId >= 0 ? 0.55 : 1.0);
             homeostasis.drives[DriveType.ENERGY.id] = Math.max(0, homeostasis.drives[DriveType.ENERGY.id] - eff);
-            // Kein Stress durch Wasser – nur Energie-Drain
             memory.logDanger(world.getTick());
+            brain.reinforce(4, (float)(dmg * 0.8)); // out[4]=Flucht verstärken wenn Schaden
         }
         if (groupId >= 0) homeostasis.applySocial(true);
 
@@ -340,17 +274,16 @@ public class ThrongletV7 {
 
         if (homeostasis.isDead()) { alive = false; return null; }
 
-        // ⑪ Reproduktion – Wohlbefinden nötig; bei kritischer Pop. werden Schwellen gesenkt
-        double valenceNeeded = critical ? 0.1 : 0.5;
-        double energyNeeded  = critical ? 45.0 : 65.0;
-        boolean canRepro = mating
-                && homeostasis.drives[DriveType.ENERGY.id] > energyNeeded
-                && homeostasis.valence > valenceNeeded
+        // ⑪ Reproduktion – Gehirn (out[9]) entscheidet, wann es versucht wird
+        boolean canRepro = out[9] > 0.7
+                && stage.canReproduce()
+                && memory.age >= (int) gene.reproductionAge
+                && homeostasis.drives[DriveType.ENERGY.id] > 25  // physisches Minimum
                 && reprodCooldown <= 0
                 && nearestMate != null && nearestMate.stage.canReproduce();
         if (canRepro) {
             homeostasis.drives[DriveType.ENERGY.id] -= 30;
-            reprodCooldown = critical ? 150 : 400;  // Kürzere Pause wenn Art bedroht
+            reprodCooldown = 400;
             reproductionCount++;
             checkReproductionMilestones();
             fitness += 12;
@@ -385,6 +318,13 @@ public class ThrongletV7 {
         if (!ageMile500  && memory.age >= 500)  { ageMile500=true;  homeostasis.applyVitalityBoost(5);  fitness+=4; }
         if (!ageMile1000 && memory.age >= 1000) { ageMile1000=true; homeostasis.applyVitalityBoost(8);  fitness+=8; }
         if (!ageMile2000 && memory.age >= 2000) { ageMile2000=true; homeostasis.applyVitalityBoost(10); fitness+=12; }
+    }
+
+    /** Normierter Richtungsvektor von aktueller Position zum Ziel. Null wenn Ziel null. */
+    private double[] dirTo(double[] target) {
+        if (target == null) return null;
+        double dx = target[0]-x, dy = target[1]-y, d = Math.sqrt(dx*dx+dy*dy);
+        return d > 0.5 ? new double[]{dx/d, dy/d} : null;
     }
 
     /** Speichert aktuelle STDP-gelernte SNN-Gewichte ins Genom (für nächste Generation). */
