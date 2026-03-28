@@ -209,17 +209,17 @@ public class ThrongletV7 {
             }
         }
 
-        // ⑦ Signal
-        if (out[4] > 1.0 - gene.languageAptitude * 0.5 && stage.canMove()) {
-            signalOut = Signal.fromFloat(out[5]);
+        // ⑦ Signal – out[6] = senden, out[7] = Typ
+        if (out[6] > 1.0 - gene.languageAptitude * 0.5 && stage.canMove()) {
+            signalOut = Signal.fromFloat(out[7]);
             socialOut = gene.socialAffinity;
         } else {
             signalOut = Signal.NONE;
             socialOut = 0;
         }
 
-        // ⑧ Nest-Marker
-        if (out[7] > 0.68 && stage != LifeStage.EGG)
+        // ⑧ Nest-Marker – out[8] doppelt als Gruppen-/Nestmarker
+        if (out[8] > 0.85 && stage != LifeStage.EGG)
             world.niche.deposit(x, y, PheromoneType.NEST, 0.08);
 
         // ⑨ Homeostase
