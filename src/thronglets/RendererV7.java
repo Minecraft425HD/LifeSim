@@ -67,6 +67,17 @@ public class RendererV7 extends JPanel {
         setPreferredSize(new Dimension(WV+HUD_W,HT));
         setBackground(new Color(6,8,18));
         setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        setFocusable(true);
+        addKeyListener(new java.awt.event.KeyAdapter(){
+            @Override public void keyPressed(java.awt.event.KeyEvent e){
+                SimConfig cfg=SimConfig.INSTANCE;
+                switch(e.getKeyChar()){
+                    case 'f','F' -> cfg.foodEnabled    = !cfg.foodEnabled;
+                    case 'r','R' -> cfg.fireEnabled    = !cfg.fireEnabled;
+                    case 's','S' -> cfg.seasonsEnabled = !cfg.seasonsEnabled;
+                }
+            }
+        });
         addMouseListener(new java.awt.event.MouseAdapter(){
             @Override public void mouseClicked(java.awt.event.MouseEvent e){
                 if(e.getX()>=WV) return;
@@ -145,11 +156,12 @@ public class RendererV7 extends JPanel {
         drawWater(g2);
         drawPhero(g2,sx,sy);
         drawNestZone(g2,sx,sy);
-        for(double[] f:food){if(f[2]<=0)continue;int px=(int)(f[0]*sx),py=(int)(f[1]*sy),sz=(int)(2+f[2]/f[3]*7);g2.setColor(new Color(45,200,65,(int)(90+f[2]/f[3]*165)));g2.fillOval(px-sz/2,py-sz/2,sz,sz);}
+        if(SimConfig.INSTANCE.foodEnabled)
+            for(double[] f:food){if(f[2]<=0)continue;int px=(int)(f[0]*sx),py=(int)(f[1]*sy),sz=(int)(2+f[2]/f[3]*7);g2.setColor(new Color(45,200,65,(int)(90+f[2]/f[3]*165)));g2.fillOval(px-sz/2,py-sz/2,sz,sz);}
         g2.setStroke(new BasicStroke(1.5f));
         for(double[] d:danger){int px=(int)(d[0]*sx),py=(int)(d[1]*sy),r=(int)(d[2]*sx);g2.setColor(new Color(200,30,30,32));g2.fillOval(px-r,py-r,r*2,r*2);g2.setColor(new Color(255,60,60,90));g2.drawOval(px-r,py-r,r*2,r*2);}
         // ── Lagerfeuer ──
-        for(double[] f:fires){
+        if(SimConfig.INSTANCE.fireEnabled) for(double[] f:fires){
             int px=(int)(f[0]*sx),py=(int)(f[1]*sy);
             int wr=(int)(f[2]*sx*0.55); // Wärme-Aura
             float flicker=0.75f+0.25f*(float)Math.sin(tick*0.18+f[0]*0.07);
@@ -196,8 +208,26 @@ public class RendererV7 extends JPanel {
             if(age<30&&da.cause!=null){g2.setColor(new Color(1f,0.55f,0.55f,al));g2.setFont(new Font("SansSerif",Font.PLAIN,8));g2.drawString(da.cause,px+5,py-4);}
         }
         drawHUD(g2);
+        drawToggles(g2);
         drawSelectedPanel(g2);
         drawSurvivalWarning(g2);
+    }
+
+    private void drawToggles(Graphics2D g2){
+        SimConfig cfg=SimConfig.INSTANCE;
+        int ox=WV+8, y=HT-30;
+        g2.setFont(new Font("Monospaced",Font.BOLD,11));
+        String[][] toggles={{"[F] Nahrung",cfg.foodEnabled?"1":"0"},
+                            {"[R] Feuer",  cfg.fireEnabled?"1":"0"},
+                            {"[S] Saison", cfg.seasonsEnabled?"1":"0"}};
+        for(String[] t:toggles){
+            boolean on=t[1].equals("1");
+            g2.setColor(on?new Color(80,220,80):new Color(180,60,60));
+            g2.fillRoundRect(ox,y-11,100,14,5,5);
+            g2.setColor(Color.WHITE);
+            g2.drawString(t[0]+" "+(on?"AN":"AUS"),ox+3,y);
+            ox+=108;
+        }
     }
 
     private void drawPhero(Graphics2D g2,double sx,double sy){double[][][] p=ph;if(p==null)return;int cs=10;for(PheromoneType pt:PheromoneType.values()){Color base=new Color(pt.argbColor,true);for(int cx=0;cx<p[pt.id].length;cx++)for(int cy=0;cy<p[pt.id][cx].length;cy++){double s=p[pt.id][cx][cy];if(s<0.025)continue;int alpha = (int)(s * 110);if (alpha < 0) alpha = 0;if (alpha > 255) alpha = 255;g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), alpha));g2.fillRect((int)(cx*cs*sx),(int)(cy*cs*sy),(int)(cs*sx)+1,(int)(cs*sy)+1);}}}

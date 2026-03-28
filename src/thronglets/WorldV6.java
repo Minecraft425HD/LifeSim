@@ -24,6 +24,7 @@ public class WorldV6 extends World {
 
     /** Position des nächsten Lagerfeuers (null wenn keine existieren) */
     public double[] nearestFirePos(double x, double y) {
+        if(!SimConfig.INSTANCE.fireEnabled) return null;
         double best = Double.MAX_VALUE; double[] bf = null;
         for (double[] f : fireList) {
             double d = dist(x, y, f[0], f[1]);
@@ -40,6 +41,7 @@ public class WorldV6 extends World {
 
     /** Wärmemenge die ein Agent an Position (x,y) pro Tick erhält */
     public double warmthAt(double x, double y) {
+        if(!SimConfig.INSTANCE.fireEnabled) return 0;
         double w = 0;
         for (double[] f : fireList) {
             double d = dist(x, y, f[0], f[1]);

@@ -17,6 +17,11 @@ public class SimConfig {
     public volatile int    dangerCount       = 0;    // 0 = Wasser übernimmt Rand-Gefahren
     public volatile double dangerStrength    = 1.0;  // Multiplikator für Danger-Schaden
 
+    // ── Ein/Ausschalten ─────────────────────────────────────────
+    public volatile boolean foodEnabled    = true;
+    public volatile boolean fireEnabled    = true;
+    public volatile boolean seasonsEnabled = true;
+
     // Singleton-Instanz
     public static final SimConfig INSTANCE = new SimConfig();
 

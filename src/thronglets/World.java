@@ -34,12 +34,14 @@ public class World {
 
     public void tick(){
         tickCount++; seasonTick++;
-        if(seasonTick>=SEASON_LEN){
+        SimConfig cfg=SimConfig.INSTANCE;
+        if(cfg.seasonsEnabled && seasonTick>=SEASON_LEN){
             seasonTick=0;
             currentSeason=Season.values()[(currentSeason.ordinal()+1)%4];
         }
+        if(!cfg.foodEnabled) return;
         double baseRg=0.12*(currentSeason==Season.SPRING?2.2:currentSeason==Season.WINTER?0.30:1.0);
-        double rg=baseRg*SimConfig.INSTANCE.foodRegenFactor;
+        double rg=baseRg*cfg.foodRegenFactor;
         for(double[] f:foodList){
             if(f[2]<=0){
                 // Aufgefressen: Respawn-Countdown (f[4]>0 = läuft, f[4]==0 = gerade erschöpft)
@@ -63,10 +65,11 @@ public class World {
     }
 
     public double consumeFood(double x,double y,double r){
+        if(!SimConfig.INSTANCE.foodEnabled) return 0;
         double tot=0;
         for(double[] f:foodList){
             if(f[2]>0 && dist(x,y,f[0],f[1])<r){
-                tot+=f[2]; // alles auf einmal aufessen
+                tot+=f[2];
                 f[2]=0;
             }
         }
@@ -81,6 +84,7 @@ public class World {
     }
 
     public double[] nearestFoodPos(double x,double y){
+        if(!SimConfig.INSTANCE.foodEnabled) return null;
         double best=Double.MAX_VALUE;double[] bf=null;
         for(double[] f:foodList){
             if(f[2]<0.5)continue;
