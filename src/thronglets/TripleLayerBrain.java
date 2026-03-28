@@ -32,6 +32,14 @@ public class TripleLayerBrain {
         meta    = new MetaCognition(seed ^ 0xDEADBEEFL);
     }
 
+    /** Konstruktor mit evolviertem Genom – SNN startet mit geerbten Gewichten. */
+    public TripleLayerBrain(NEATGenome genome, long seed, java.util.Random rng) {
+        snn     = new SpikingBrain(genome.snnW1, genome.snnW2, rng);
+        beliefs = new BeliefState();
+        fep     = new FreeEnergyMinimizer();
+        meta    = new MetaCognition(seed ^ 0xDEADBEEFL);
+    }
+
     /**
      * @param inputs      Sensor- + Homeostase-Inputs [16]
      * @param homeostasis Aktueller Homeostase-Zustand

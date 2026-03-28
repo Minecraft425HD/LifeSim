@@ -120,7 +120,10 @@ public class SimulationV7 implements Runnable {
                 if(renderer!=null) renderer.setNestCount(nc);
             }
 
-            for (ThrongletV7 t:pop) t.genome.fitness=t.fitness;
+            for (ThrongletV7 t:pop) {
+                t.syncWeightsToGenome();   // STDP-gelernte Gewichte ins Genom übertragen
+                t.genome.fitness=t.fitness;
+            }
 
             if (world.getTick()%3==0&&renderer!=null)
                 renderer.update(new ArrayList<>(pop), world, groups, generation, neat.speciesCount());
@@ -138,7 +141,8 @@ public class SimulationV7 implements Runnable {
                 for (NEATGenome g:evolved) {
                     double a = rng.nextDouble()*2*Math.PI;
                     double rad = rng.nextDouble()*80;
-                    pop.add(new ThrongletV7(WORLD_W/2.0+Math.cos(a)*rad, WORLD_H/2.0+Math.sin(a)*rad, rng));
+                    // Evolviertes Genom wird genutzt – Gehirn startet mit geerbten Gewichten
+                    pop.add(new ThrongletV7(WORLD_W/2.0+Math.cos(a)*rad, WORLD_H/2.0+Math.sin(a)*rad, g, rng));
                 }
                 System.out.printf("  ↳ Gen %d | Spezies: %d | Aussterbungen: %d%n",
                         generation, neat.speciesCount(), extinctionCount);

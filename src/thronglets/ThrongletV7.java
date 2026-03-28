@@ -64,6 +64,21 @@ public class ThrongletV7 {
         homeostasis.drives[DriveType.ENERGY.id] = 55 + rng.nextDouble() * 35;
     }
 
+    /** Konstruktor für evolvierte Agenten – Gehirn wird aus dem Genom initialisiert. */
+    public ThrongletV7(double x, double y, NEATGenome evolvedGenome, Random rng) {
+        id         = nextId++;
+        this.x     = x;
+        this.y     = y;
+        this.rng   = rng;
+        brainSeed  = rng.nextLong();
+        brain      = new TripleLayerBrain(evolvedGenome, brainSeed, rng);
+        homeostasis= new Homeostasis(rng);
+        gene       = new Gene(rng);
+        memory     = new Memory();
+        genome     = evolvedGenome;  // evolviertes Genom behalten
+        homeostasis.drives[DriveType.ENERGY.id] = 55 + rng.nextDouble() * 35;
+    }
+
     public ThrongletV7(double x, double y, ThrongletV7 parent, ThrongletV7 partner, Random rng) {
         id         = nextId++;
         this.x     = x;
@@ -370,6 +385,13 @@ public class ThrongletV7 {
         if (!ageMile500  && memory.age >= 500)  { ageMile500=true;  homeostasis.applyVitalityBoost(5);  fitness+=4; }
         if (!ageMile1000 && memory.age >= 1000) { ageMile1000=true; homeostasis.applyVitalityBoost(8);  fitness+=8; }
         if (!ageMile2000 && memory.age >= 2000) { ageMile2000=true; homeostasis.applyVitalityBoost(10); fitness+=12; }
+    }
+
+    /** Speichert aktuelle STDP-gelernte SNN-Gewichte ins Genom (für nächste Generation). */
+    public void syncWeightsToGenome() {
+        float[][] w1 = brain.snn.w1, w2 = brain.snn.w2;
+        for (int h=0;h<SpikingBrain.HIDDEN;h++) System.arraycopy(w1[h],0,genome.snnW1[h],0,SpikingBrain.IN);
+        for (int o=0;o<SpikingBrain.OUT;o++)    System.arraycopy(w2[o],0,genome.snnW2[o],0,SpikingBrain.HIDDEN);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
