@@ -352,8 +352,11 @@ public class ThrongletV7 {
     }
 
     /**
-     * 24 Sensor-Inputs – jedes sensorische Objekt hat Distanz + Richtungsvektor (dx,dy → [0,1]).
+     * 30 Sensor-Inputs – jedes sensorische Objekt hat Distanz + Richtungsvektor (dx,dy → [0,1]).
      * Richtungskodierung: 0 = links/oben, 0.5 = kein X/Y-Anteil, 1 = rechts/unten.
+     * [0-6] Homöostase | [7-9] Nahrung | [10-12] Feuer | [13-15] Agent |
+     * [16-19] Wände | [20] Gefahr | [21] Jahreszeit | [22] Alter | [23] FE |
+     * [24] Populationsdruck | [25] Vitalität | [26-28] Direkt-Kommunikation | [29] Gruppen-Signal
      */
     private float[] buildInputs(WorldV6 world, Signal groupSig, ThrongletV7 nearestAgent, int totalPop) {
         float[] h   = homeostasis.toInputVector();
@@ -413,13 +416,16 @@ public class ThrongletV7 {
         // [25] Vitalität (normiert)
         inp[25] = (float)(homeostasis.drives[DriveType.VITALITY.id] / 100.0);
 
-        // [26-28] Kommunikation: Signal vom nächsten Agenten empfangen
+        // [26-28] Kommunikation: Signal vom nächsten Agenten empfangen (direkt)
         if (nearestAgent != null && nearestAgent.signalOut != Signal.NONE) {
             inp[26] = 1.0f; // Signal vorhanden
             inp[27] = nearestAgent.signalOut.toFloat(); // Signaltyp
             double sdx = nearestAgent.x-x, sdy = nearestAgent.y-y, sd = Math.sqrt(sdx*sdx+sdy*sdy);
             inp[28] = sd > 0 ? (float)(Math.atan2(sdy/sd, sdx/sd) / (2*Math.PI) + 0.5) : 0.5f; // Richtung
         } // else: 0.0 default = kein Signal
+
+        // [29] Gruppen-Broadcast-Signal (von beliebigem Gruppenmitglied)
+        inp[29] = groupSig != null ? groupSig.toFloat() : 0f;
 
         return inp;
     }

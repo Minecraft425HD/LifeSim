@@ -73,6 +73,8 @@ public class SimulationV7 implements Runnable {
                     double[] fp=world.nearestFoodPos(t.x,t.y);
                     if (fp!=null) g.broadcastFood(fp[0],fp[1]);
                 }
+                // Gruppen-Broadcast: jedes Signal wird an die ganze Gruppe gesendet
+                if (t.signalOut!=Signal.NONE&&g!=null) g.sharedSignal=t.signalOut;
                 if (child!=null&&pop.size()+newborns.size()<MAX_POP) newborns.add(child);
             }
 
