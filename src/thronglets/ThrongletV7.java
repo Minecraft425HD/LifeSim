@@ -263,7 +263,10 @@ public class ThrongletV7 {
             memory.logDanger(world.getTick());
             brain.reinforce(4, (float)(dmg * 0.8)); // out[4]=Flucht verstärken wenn Schaden
         }
-        if (groupId >= 0) homeostasis.applySocial(true);
+        if (groupId >= 0) {
+            homeostasis.applySocial(true);
+            if (memory.age % 50 == 0) memory.logEvent(Memory.EV_GROUP, world.getTick());
+        }
 
         // ⑩ Fitness
         fitness += homeostasis.wellbeing() * 0.12 + 0.05;
@@ -282,20 +285,23 @@ public class ThrongletV7 {
         if (homeostasis.isDead()) { alive = false; return null; }
 
         // ⑪ Reproduktion – Gehirn (out[9]) entscheidet, wann es versucht wird
-        boolean canRepro = out[9] > 0.7
+        // Populations-Druck: Je kleiner die Pop, desto niedriger die Schwelle (Überlebensdrang)
+        double reprThreshold = totalPop <= 3 ? 0.40 : totalPop <= 5 ? 0.50 : 0.55;
+        boolean canRepro = out[9] > reprThreshold
                 && stage.canReproduce()
                 && memory.age >= (int) gene.reproductionAge
-                && homeostasis.drives[DriveType.ENERGY.id] > 25  // physisches Minimum
+                && homeostasis.drives[DriveType.ENERGY.id] > 20  // physisches Minimum
                 && reprodCooldown <= 0
-                && nearestMate != null && nearestMate.stage.canReproduce();
+                && nearestMate != null && nearestMate.stage.canReproduce()
+                && nearestMate.reprodCooldown <= 0;
         if (canRepro) {
-            homeostasis.drives[DriveType.ENERGY.id] -= 30;
-            reprodCooldown = 400;
+            homeostasis.drives[DriveType.ENERGY.id] -= 25;
+            reprodCooldown = 250;
             reproductionCount++;
             checkReproductionMilestones();
             fitness += 20 + reproductionCount * 2; // Fortpflanzungskette wächst
             memory.logMate(world.getTick());
-            brain.reinforce(9, 3.0f); // out[9]=Fortpflanzung war erfolgreich
+            brain.reinforce(9, 5.0f); // out[9]=Fortpflanzung war erfolgreich – starkes Signal
             ThrongletV7 child = new ThrongletV7(
                     x + rng.nextGaussian() * 8,
                     y + rng.nextGaussian() * 8,

@@ -6,7 +6,7 @@ import java.util.stream.Collectors;
 public class SimulationV7 implements Runnable {
 
     public static final int    WORLD_W  = 500, WORLD_H  = 500;
-    public static final int    START_POP= 3,  MIN_POP  = 2, MAX_POP = 100;
+    public static final int    START_POP= 6,  MIN_POP  = 3, MAX_POP = 100;
     public static final long   TICK_MS  = 28;
     public static final double GRP_R    = 38.0;
 
@@ -40,8 +40,9 @@ public class SimulationV7 implements Runnable {
     @Override
     public void run() {
         System.out.println("═══════════════════════════════════════════════════");
-        System.out.println("  THRONGLETS  V7  –  MAXIMUM LIFE");
+        System.out.println("  THRONGLETS  V9  –  MAXIMUM LIFE");
         System.out.println("  SNN (STDP) + FEP (Friston) + Nano-Transformer");
+        System.out.println("  Episodisches Gedächtnis + Brain-Bars + Kontrollen");
         System.out.println("═══════════════════════════════════════════════════\n");
 
         while (running) {
@@ -75,7 +76,10 @@ public class SimulationV7 implements Runnable {
                 }
                 // Gruppen-Broadcast: jedes Signal wird an die ganze Gruppe gesendet
                 if (t.signalOut!=Signal.NONE&&g!=null) g.sharedSignal=t.signalOut;
-                if (child!=null&&pop.size()+newborns.size()<MAX_POP) newborns.add(child);
+                if (child!=null&&pop.size()+newborns.size()<MAX_POP) {
+                    child.memory.logEvent(Memory.EV_BIRTH, world.getTick());
+                    newborns.add(child);
+                }
             }
 
             pop.addAll(newborns);
