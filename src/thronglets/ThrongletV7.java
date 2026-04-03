@@ -115,9 +115,9 @@ public class ThrongletV7 {
         // ② Dreischichtiges Gehirn
         float[] out = brain.forward(inp, homeostasis, groupSize);
 
-        // ③ Innerer Monolog + Brain-Output speichern
-        lastThought  = brain.getLastThought();
+        // ③ Gedanke aus tatsächlichem Verhalten ableiten (spiegelt out[] wider)
         lastBrainOut = out.clone();
+        lastThought  = deriveThought(out);
 
         // ④ FREIER WILLE – Gehirn steuert alle Entscheidungen
         //
@@ -331,6 +331,48 @@ public class ThrongletV7 {
         if (!ageMile500  && memory.age >= 500)  { ageMile500=true;  homeostasis.applyVitalityBoost(5);  fitness+=4; }
         if (!ageMile1000 && memory.age >= 1000) { ageMile1000=true; homeostasis.applyVitalityBoost(8);  fitness+=8; }
         if (!ageMile2000 && memory.age >= 2000) { ageMile2000=true; homeostasis.applyVitalityBoost(10); fitness+=12; }
+    }
+
+    /**
+     * Leitet den angezeigten Gedanken direkt aus dem finalen Brain-Output und
+     * der Homeostase ab. Priorisiert: kritische Zustände → dominanter SNN-Output
+     * → Homeostase-Kontext.
+     *
+     * out[]: 0=Dir 1=Spd 2=Nahr 3=Feu 4=Fli 5=Soz 6=Sig 7=SigTyp 8=Nest 9=Rep
+     */
+    private String deriveThought(float[] out) {
+        double energy  = homeostasis.drives[DriveType.ENERGY.id];
+        double stress  = homeostasis.drives[DriveType.STRESS.id];
+        double warmth  = homeostasis.drives[DriveType.WARMTH.id];
+
+        // ① Kritische Überlebenszustände – höchste Priorität
+        if (energy < 10)                        return "Sterbe";
+        if (energy < 22)                        return "Hunger";
+        if (stress > 88)                        return "Gefahr!";
+
+        // ② Dominanter SNN-Ausgabe-Kanal (was tut das Gehirn gerade?)
+        if (out[9] > 0.52f)                     return "Fortpflanz";
+        if (out[4] > 0.62f)                     return "Fliehe!";
+        if (out[2] > 0.58f)                     return "NahrungNah";
+        if (out[3] > 0.58f)                     return "Warm";
+        if (out[5] > 0.58f && groupId >= 0)     return "InGruppe";
+        if (out[5] > 0.58f)                     return "Sozial";
+        if (out[8] > 0.62f && groupId >= 0)     return "Plane";
+        if (out[6] > 0.68f)                     return "Verbünde";
+
+        // ③ Homeostase-Kontext als Hintergrund-Gedanke
+        if (energy < 38)                        return "Erschöpft";
+        if (stress > 60)                        return "Besorgt";
+        if (warmth < 22)                        return "Kalt";
+        if (energy > 78 && stress < 25 && homeostasis.valence > 0.2) return "Satt";
+        if (groupId >= 0 && homeostasis.drives[DriveType.SOCIAL.id] > 60) return "Glücklich";
+        if (homeostasis.valence > 0.45)         return "Glücklich";
+        if (homeostasis.valence < -0.25)        return "Schwach";
+        if (homeostasis.drives[DriveType.CURIOSITY.id] > 65) return "Erkunde";
+        if (groupId < 0 && homeostasis.drives[DriveType.SOCIAL.id] < 28) return "Allein";
+
+        // ④ Fallback: NanoTransformer-Gedanke (fügt Tiefe für neutrale Zustände)
+        return brain.getLastThought();
     }
 
     /** Normierter Richtungsvektor von aktueller Position zum Ziel. Null wenn Ziel null. */
