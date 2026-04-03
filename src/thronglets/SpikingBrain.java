@@ -15,7 +15,7 @@ import java.util.Random;
  */
 public class SpikingBrain {
 
-    public static final int IN     = 16;
+    public static final int IN     = 30;  // 7 Homöostase + 3 Nahrung + 3 Feuer + 3 Agent + 4 Wände + Gefahr + Jahreszeit + Alter + FE + Populationsdichte + Vitalität + 3 Kommunikation + Gruppensignal
     public static final int HIDDEN = 32;
     public static final int OUT    = 10;
 
@@ -45,10 +45,18 @@ public class SpikingBrain {
         for (int i=0;i<IN;    i++) inputLayer[i]  = new LIFNeuron();
         for (int i=0;i<HIDDEN;i++) hiddenLayer[i] = new LIFNeuron();
         for (int i=0;i<OUT;   i++) outputLayer[i] = new LIFNeuron();
-        // Größere Initialisierung für mehr individuelle Variation zwischen Agenten
         for (int h=0;h<HIDDEN;h++) for (int i=0;i<IN;    i++) w1[h][i]=(float)(rng.nextGaussian()*0.8f);
         for (int o=0;o<OUT;   o++) for (int h=0;h<HIDDEN;h++) w2[o][h]=(float)(rng.nextGaussian()*0.5f);
-        // Per-Agent zufällige Startrichtungen (verhindert initiales Gleichlaufen)
+        for (int o=0;o<OUT;o++) outputRates[o]=0.25f+rng.nextFloat()*0.5f;
+    }
+
+    /** Konstruktor mit vorgegebenen Gewichten (aus evolviertem Genom). */
+    public SpikingBrain(float[][] w1init, float[][] w2init, Random rng) {
+        for (int i=0;i<IN;    i++) inputLayer[i]  = new LIFNeuron();
+        for (int i=0;i<HIDDEN;i++) hiddenLayer[i] = new LIFNeuron();
+        for (int i=0;i<OUT;   i++) outputLayer[i] = new LIFNeuron();
+        for (int h=0;h<HIDDEN;h++) System.arraycopy(w1init[h],0,w1[h],0,IN);
+        for (int o=0;o<OUT;   o++) System.arraycopy(w2init[o],0,w2[o],0,HIDDEN);
         for (int o=0;o<OUT;o++) outputRates[o]=0.25f+rng.nextFloat()*0.5f;
     }
 
