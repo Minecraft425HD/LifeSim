@@ -203,14 +203,14 @@ public class RendererV7 extends JPanel {
         for(AgentSnap a:agents){
             int px=(int)(a.x*sx),py=(int)(a.y*sy);
             int r=switch(a.stage){case "Ei"->4;case "Baby"->5;case "Jugend"->7;case "Aeltester"->8;default->9;};
-            if(a.freeEnergy>0.1f){int halo=(int)(r+a.freeEnergy*30);g2.setColor(new Color(180,100,255,Math.min(255,(int)(a.freeEnergy*60))));g2.fillOval(px-halo,py-halo,halo*2,halo*2);}
+            if(a.freeEnergy>0.1f){int halo=(int)(r+a.freeEnergy*30);g2.setColor(new Color(180,100,255,Math.max(0,Math.min(255,(int)(a.freeEnergy*60)))));g2.fillOval(px-halo,py-halo,halo*2,halo*2);}
             int spikeCount=0;if(a.hiddenSpikes!=null)for(boolean s:a.hiddenSpikes)if(s)spikeCount++;
             if(spikeCount>4){float spikeAlpha=Math.min(0.7f,spikeCount/20f);g2.setColor(new Color(1f,1f,0.5f,spikeAlpha));g2.fillOval(px-r-2,py-r-2,(r+2)*2,(r+2)*2);}
-            float vv=(float)((a.valence+1)/2.0);g2.setColor(new Color(1f-vv,vv*0.8f,0.2f,0.3f));g2.fillOval(px-r-3,py-r-3,(r+3)*2,(r+3)*2);
+            float vv=Math.max(0f,Math.min(1f,(float)((a.valence+1)/2.0)));g2.setColor(new Color(1f-vv,vv*0.8f,0.2f,0.3f));g2.fillOval(px-r-3,py-r-3,(r+3)*2,(r+3)*2);
             Color sc=specColors.getOrDefault(a.speciesId,Color.GRAY);g2.setColor(sc);g2.fillOval(px-r,py-r,r*2,r*2);
             if(a.isAlpha){g2.setColor(Color.YELLOW);g2.setStroke(new BasicStroke(2f));g2.drawOval(px-r-2,py-r-2,(r+2)*2,(r+2)*2);g2.setStroke(new BasicStroke(1f));}
             DriveType[] drives=DriveType.values();
-            for(int d=0;d<drives.length;d++){double discomf=drives[d].discomfort(a.homeoDrives[d]);if(discomf<0.12)continue;int arc=360/drives.length,startAngle=d*arc;Color dc=new Color(new Color(drives[d].color,true).getRed()/255f,new Color(drives[d].color,true).getGreen()/255f,new Color(drives[d].color,true).getBlue()/255f,(float)Math.min(0.95,discomf));g2.setColor(dc);g2.setStroke(new BasicStroke(2.5f));g2.drawArc(px-r-3,py-r-3,(r+3)*2,(r+3)*2,startAngle,arc-2);}g2.setStroke(new BasicStroke(1f));
+            for(int d=0;d<drives.length;d++){double discomf=drives[d].discomfort(a.homeoDrives[d]);if(discomf<0.12)continue;int arc=360/drives.length,startAngle=d*arc;Color dc=new Color(new Color(drives[d].color,true).getRed()/255f,new Color(drives[d].color,true).getGreen()/255f,new Color(drives[d].color,true).getBlue()/255f,(float)Math.max(0.0,Math.min(0.95,discomf)));g2.setColor(dc);g2.setStroke(new BasicStroke(2.5f));g2.drawArc(px-r-3,py-r-3,(r+3)*2,(r+3)*2,startAngle,arc-2);}g2.setStroke(new BasicStroke(1f));
             double ep=Math.min(1,a.energy/100);int bx=px-r-1,by=py+r+2,bw=r*2+2;g2.setColor(new Color(40,40,50));g2.fillRect(bx,by,bw,3);g2.setColor(ep>0.5?new Color(60,220,60):ep>0.25?new Color(220,180,30):new Color(220,50,50));g2.fillRect(bx,by,(int)(bw*ep),3);
             if(a.thought!=null && !a.thought.equals("…") && !a.thought.equals("Beobachte") && tick%10<3){g2.setFont(new Font("SansSerif",Font.PLAIN,9));FontMetrics fm=g2.getFontMetrics();int tw=fm.stringWidth(a.thought)+8;g2.setColor(new Color(0,0,0,160));g2.fillRoundRect(px+r+2,py-r-2,tw,14,5,5);g2.setColor(new Color(220,255,180));g2.drawString(a.thought,px+r+6,py-r+9);}
             // ── Name-Schild ──
